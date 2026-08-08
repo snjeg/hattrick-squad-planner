@@ -23,3 +23,7 @@ export function formatSyncTime(value: string | null): string {
     timeStyle: 'short',
   }).format(new Date(value))
 }
+
+export function formatProjectedSkill(value: number | null): string {
+  return value === null ? '—' : value.toFixed(2)
+}

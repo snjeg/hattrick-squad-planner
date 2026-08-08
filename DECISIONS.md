@@ -211,3 +211,31 @@ Do not implement training optimization yet.
 **Revisit:** Revalidate the pinned formula and representative golden cases against a current HO installation and official Hattrick behavior before Milestone 3 optimization work.
 
 The 2026-08-08 direct source audit found one HO-internal discrepancy for Winger/Crossing: the active match-sector list excludes goalkeeper from osmosis, while an older position-ID array includes it. Follow the sector list used by `Player.calculateWeeklyTraining`; goalkeeper therefore receives no Winger osmosis. This supersedes the initial generalized mapping that treated every non-winger/non-wingback position as osmosis-eligible.
+
+---
+
+## 2026-08-09 - Reproducible manual-plan starting state
+
+**Decision:** A training plan captures the latest completed sync plus an explicit mapping from each starting player to the exact factual `PlayerSnapshot` used. Later CHPP syncs do not alter existing plan inputs.
+
+**Reason:** Manual simulations must remain reproducible and must never silently move to newer factual observations. A future refresh action must be explicit and may clone or deliberately rebase the plan.
+
+---
+
+## 2026-08-09 - Estimated subskills and projected-data boundary
+
+**Decision:** Visible CHPP skills start simulations at `.00` unless the plan contains a same-visible-level manual override. Projected states remain in memory/API output and are never stored as factual `PlayerSnapshot` rows. Plans record the training-engine reference version.
+
+**Reason:** CHPP does not reveal fractional subskills. Treating `.00` and projected results as estimates preserves the factual/hypothetical distinction while leaving an extension point for later inference.
+
+**Revisit:** Define migration/recalculation policy before changing the pinned training formula or adding automatic subskill estimates.
+
+---
+
+## 2026-08-09 - Conservative two-match capacity validation
+
+**Decision:** Validate manual assignments against aggregate minutes for two normal 90-minute lineups: position maxima, five-player defender/midfielder line maxima, eleven players per match, and 180 appearance minutes per player. Keep this capacity model separate from eligibility and training-speed calculations.
+
+**Reason:** It rejects obvious impossible plans such as seven full IM trainees while supporting substitutions and mixed appearances without building a future-match simulator.
+
+**Revisit:** Aggregate feasibility does not prove that every unusual mixed-minute allocation can be scheduled into two concrete lineups. Add an explicit lineup scheduler only if a later milestone requires it.
