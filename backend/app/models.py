@@ -1,6 +1,16 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -81,6 +91,121 @@ class PlayerSnapshot(Base):
     is_foreign: Mapped[bool | None] = mapped_column(Boolean)
 
     player: Mapped[Player] = relationship(back_populates="snapshots")
+
+
+class TrainingPlan(Base):
+    __tablename__ = "training_plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    starting_sync_run_id: Mapped[int] = mapped_column(ForeignKey("sync_runs.id"))
+    formula_version: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    players: Mapped[list["TrainingPlanPlayer"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan"
+    )
+    blocks: Mapped[list["TrainingBlock"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        order_by="(TrainingBlock.sort_order, TrainingBlock.id)",
+    )
+
+
+class TrainingPlanPlayer(Base):
+    __tablename__ = "training_plan_players"
+    __table_args__ = (
+        UniqueConstraint("plan_id", "player_id", name="uq_training_plan_player"),
+        UniqueConstraint("plan_id", "snapshot_id", name="uq_training_plan_snapshot"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("training_plans.id"), index=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("player_snapshots.id"), index=True)
+    starting_skill_overrides: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
+
+    plan: Mapped[TrainingPlan] = relationship(back_populates="players")
+    player: Mapped[Player] = relationship()
+    snapshot: Mapped[PlayerSnapshot] = relationship()
+    assignments: Mapped[list["TrainingAssignment"]] = relationship(
+        back_populates="plan_player", cascade="all, delete-orphan"
+    )
+
+
+class TrainingBlock(Base):
+    __tablename__ = "training_blocks"
+    __table_args__ = (
+        UniqueConstraint("plan_id", "sort_order", name="uq_training_block_order"),
+        CheckConstraint("weeks > 0", name="ck_training_block_positive_weeks"),
+        CheckConstraint("coach_level BETWEEN 4 AND 8", name="ck_training_block_coach"),
+        CheckConstraint(
+            "assistant_total_levels BETWEEN 0 AND 10",
+            name="ck_training_block_assistants",
+        ),
+        CheckConstraint("intensity BETWEEN 1 AND 100", name="ck_training_block_intensity"),
+        CheckConstraint(
+            "stamina_share BETWEEN 10 AND 100", name="ck_training_block_stamina"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("training_plans.id"), index=True)
+    sort_order: Mapped[int] = mapped_column(Integer)
+    training_type: Mapped[str] = mapped_column(String(40))
+    weeks: Mapped[int] = mapped_column(Integer)
+    coach_level: Mapped[int] = mapped_column(Integer)
+    assistant_total_levels: Mapped[int] = mapped_column(Integer)
+    intensity: Mapped[int] = mapped_column(Integer)
+    stamina_share: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    plan: Mapped[TrainingPlan] = relationship(back_populates="blocks")
+    assignments: Mapped[list["TrainingAssignment"]] = relationship(
+        back_populates="block", cascade="all, delete-orphan"
+    )
+
+
+class TrainingAssignment(Base):
+    __tablename__ = "training_assignments"
+    __table_args__ = (
+        UniqueConstraint("block_id", "plan_player_id", name="uq_training_assignment_player"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    block_id: Mapped[int] = mapped_column(ForeignKey("training_blocks.id"), index=True)
+    plan_player_id: Mapped[int] = mapped_column(
+        ForeignKey("training_plan_players.id"), index=True
+    )
+    is_set_piece_taker: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    block: Mapped[TrainingBlock] = relationship(back_populates="assignments")
+    plan_player: Mapped[TrainingPlanPlayer] = relationship(back_populates="assignments")
+    appearances: Mapped[list["TrainingAppearance"]] = relationship(
+        back_populates="assignment", cascade="all, delete-orphan", order_by="TrainingAppearance.id"
+    )
+
+
+class TrainingAppearance(Base):
+    __tablename__ = "training_appearances"
+    __table_args__ = (
+        CheckConstraint("minutes BETWEEN 0 AND 90", name="ck_training_appearance_minutes"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("training_assignments.id"), index=True
+    )
+    position: Mapped[str] = mapped_column(String(30))
+    minutes: Mapped[int] = mapped_column(Integer)
+
+    assignment: Mapped[TrainingAssignment] = relationship(back_populates="appearances")
 
 
 class OAuthCredential(Base):

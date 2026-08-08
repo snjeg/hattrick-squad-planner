@@ -1,6 +1,6 @@
 # Hattrick Squad Development Planner
 
-Milestones 1, 1.1, and 2 provide a React/TypeScript squad view, CHPP senior-player ingestion, managed database migrations, and a standalone Python senior training engine. Player identities are normalized and each successful manual sync adds immutable historical snapshots.
+Milestones 1 through 3 provide CHPP senior-player ingestion, immutable factual snapshots, a verified standalone training engine, and a persistent manual training-cycle simulator. Managers choose every block and assignment; the application projects the question “If I follow this plan, what happens?” without recommending a strategy.
 
 The local development default is mock CHPP XML, so ingestion works without credentials or live Hattrick access. Training calculations consume normalized domain inputs and do not call CHPP, FastAPI, or the frontend.
 
@@ -11,12 +11,14 @@ backend/
   alembic/             Managed schema migrations
   app/                 FastAPI app, persistence, and CHPP adapters
   app/training/        Framework-independent training domain engine
+  app/simulator/       Week-by-week projection and capacity domain
   fixtures/chpp/       Fictional CHPP XML used in mock mode
   tests/               Backend, migration, and training unit tests
 frontend/
   src/                 React application and tests
 docs/architecture.md   Application boundaries and data flow
 docs/training-engine.md Formula traceability and training rules
+docs/training-simulator.md Manual-plan semantics and capacity assumptions
 docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
@@ -42,7 +44,7 @@ alembic revision --autogenerate -m "describe change"
 alembic downgrade -1
 ```
 
-The initial migration creates a fresh schema and can adopt the previous unversioned Milestone 1 SQLite schema by adding the Milestone 1.1 columns. Application startup does not create or mutate the schema; run `alembic upgrade head` before starting it. Tests may continue to create disposable schemas directly.
+The migration chain creates or upgrades the factual squad schema and adds persistent Milestone 3 plan/block/assignment tables. Application startup does not create or mutate the schema; run `alembic upgrade head` before starting it. Tests may continue to create disposable schemas directly.
 
 The API runs at `http://localhost:8000`. SQLite defaults to `backend/data/hattrick_planner.db`; override it with `DATABASE_URL`. Migrations use portable SQLAlchemy operations intended for SQLite and PostgreSQL.
 
@@ -65,6 +67,12 @@ The frontend runs at `http://localhost:5173` and proxies `/api` to FastAPI.
 3. Select **Sync senior squad**.
 4. The fictional XML fixture is normalized, persisted, and displayed.
 5. Sync again to append another snapshot for each player while retaining identities.
+
+## Manual training plans
+
+Open **Training plans**, create a plan from the latest completed sync, add ordered blocks, configure the training setup, and assign players using Hattrick positions/minutes. Saving an assignment displays the backend-calculated full/partial/osmosis/bonus category. **Simulate plan** shows estimated fractional skills after every block and at plan end.
+
+New blocks default to Playmaking, one week, solid coach, ten assistant levels, 100% intensity, and 10% stamina share. These are editable application assumptions because current club training settings are not imported. Visible skills start at `.00`; projections are never written to factual snapshots.
 
 ## Live CHPP configuration
 
@@ -94,5 +102,11 @@ pnpm build
 - `GET /api/chpp/auth/callback` - complete live OAuth authorization.
 - `POST /api/chpp/sync` - user-triggered senior squad import.
 - `GET /api/squad` - chronologically latest snapshot for each imported player.
+- `GET|POST /api/training-plans` - list or create stable-snapshot manual plans.
+- `GET|PATCH|DELETE /api/training-plans/{id}` - read, rename/override, or delete a plan.
+- `POST|PATCH|DELETE /api/training-plans/{id}/blocks[...]` - add, edit, or remove blocks.
+- `PUT /api/training-plans/{id}/blocks/order` - reorder every block deterministically.
+- `PUT /api/training-plans/{id}/blocks/{block}/assignments` - replace planned positional exposure.
+- `POST /api/training-plans/{id}/simulate` - run the hypothetical week-by-week projection; add `?detailed=true` for weekly output.
 
-There is deliberately no training-planner API or major UI yet. Read `PROJECT_SPEC.md`, `AGENTS.md`, and `DECISIONS.md` before extending the product.
+The simulator is manual: there is deliberately no optimizer, recommended training cycle, transfer advice, wage/finance forecast, lineup engine, or tactics model. Read `PROJECT_SPEC.md`, `AGENTS.md`, and `DECISIONS.md` before extending the product.

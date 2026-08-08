@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import { formatAge, formatForeign, formatNumber, formatSpecialty, formatSyncTime } from './format'
 import type { CHPPStatus, SquadResponse } from './types'
+import TrainingPlans from './TrainingPlans'
 import './styles.css'
 
 const emptySquad: SquadResponse = { players: [], last_synced_at: null }
 
 function App() {
+  const [activeView, setActiveView] = useState<'squad' | 'plans'>('squad')
   const [status, setStatus] = useState<CHPPStatus | null>(null)
   const [squad, setSquad] = useState<SquadResponse>(emptySquad)
   const [loading, setLoading] = useState(true)
@@ -84,10 +86,16 @@ function App() {
             <small>Squad development</small>
           </span>
         </a>
-        <span className="milestone">Milestone 1 · Squad data</span>
+        <nav className="main-nav" aria-label="Primary navigation">
+          <button className={activeView === 'squad' ? 'active' : ''} onClick={() => setActiveView('squad')}>Squad</button>
+          <button className={activeView === 'plans' ? 'active' : ''} onClick={() => setActiveView('plans')}>Training plans</button>
+        </nav>
+        <span className="milestone">Milestone 3 · Manual simulator</span>
       </header>
 
       <main>
+        {activeView === 'squad' ? (
+          <>
         <section className="hero" aria-labelledby="page-title">
           <div>
             <p className="eyebrow">Development workspace</p>
@@ -168,6 +176,10 @@ function App() {
             </div>
           )}
         </section>
+          </>
+        ) : (
+          <TrainingPlans />
+        )}
       </main>
 
       <footer>Local-first foundation · No background syncing</footer>

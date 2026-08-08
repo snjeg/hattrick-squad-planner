@@ -6,12 +6,12 @@ from sqlalchemy import create_engine, inspect, text
 
 from alembic import command
 from app.config import get_settings
-from app.models import Base
+from app.models import OAuthCredential, OAuthRequestState, Player, PlayerSnapshot, SyncRun
 
 BACKEND_ROOT = Path(__file__).parents[1]
 
 
-def test_initial_migration_builds_milestone_1_1_schema(
+def test_migrations_build_schema_through_milestone_3(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     database_url = f"sqlite:///{(tmp_path / 'migration.db').as_posix()}"
@@ -30,6 +30,13 @@ def test_initial_migration_builds_milestone_1_1_schema(
     )
     player_columns = {column["name"] for column in inspector.get_columns("players")}
     assert "is_mother_club" in player_columns
+    assert {
+        "training_plans",
+        "training_plan_players",
+        "training_blocks",
+        "training_assignments",
+        "training_appearances",
+    }.issubset(inspector.get_table_names())
     get_settings.cache_clear()
 
 
@@ -38,7 +45,16 @@ def test_initial_migration_adopts_existing_milestone_1_sqlite(
 ) -> None:
     database_url = f"sqlite:///{(tmp_path / 'legacy.db').as_posix()}"
     engine = create_engine(database_url)
-    Base.metadata.create_all(engine)
+    SyncRun.metadata.create_all(
+        engine,
+        tables=[
+            SyncRun.__table__,
+            Player.__table__,
+            OAuthCredential.__table__,
+            OAuthRequestState.__table__,
+            PlayerSnapshot.__table__,
+        ],
+    )
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE players DROP COLUMN is_mother_club"))
         for column in ("stamina", "form", "experience", "loyalty", "injury_level", "cards"):
@@ -58,4 +74,5 @@ def test_initial_migration_adopts_existing_milestone_1_sqlite(
     assert {"stamina", "form", "experience", "loyalty", "injury_level", "cards"}.issubset(
         {column["name"] for column in inspector.get_columns("player_snapshots")}
     )
+    assert "training_plans" in inspector.get_table_names()
     get_settings.cache_clear()

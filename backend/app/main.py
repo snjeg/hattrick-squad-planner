@@ -2,36 +2,72 @@ from typing import Annotated
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.chpp.client import AccessToken, MockCHPPClient, OAuthCHPPClient
 from app.config import Settings, get_settings
 from app.database import get_session
 from app.models import OAuthCredential, OAuthRequestState
+from app.plan_services import (
+    PlanNotFoundError,
+    PlanValidationError,
+    add_training_block,
+    create_training_plan,
+    delete_training_block,
+    delete_training_plan,
+    get_training_plan,
+    list_training_plans,
+    reorder_training_blocks,
+    replace_training_assignments,
+    run_training_simulation,
+    update_training_block,
+    update_training_plan,
+)
 from app.schemas import (
     AuthStartResponse,
     CHPPStatusResponse,
     HealthResponse,
+    SimulationResponse,
     SquadResponse,
     SyncResponse,
+    TrainingAssignmentsReplace,
+    TrainingBlockCreate,
+    TrainingBlockOrderUpdate,
+    TrainingBlockUpdate,
+    TrainingPlanCreate,
+    TrainingPlanListResponse,
+    TrainingPlanResponse,
+    TrainingPlanUpdate,
 )
 from app.services import get_squad, sync_squad
+from app.simulator.capacity import CapacityValidationError
 
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-app = FastAPI(title="Hattrick Squad Planner API", version="0.2.0")
+app = FastAPI(title="Hattrick Squad Planner API", version="0.3.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
+
+
+@app.exception_handler(PlanNotFoundError)
+def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": str(error)})
+
+
+@app.exception_handler(PlanValidationError)
+@app.exception_handler(CapacityValidationError)
+def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": str(error)})
 
 
 def _live_client(settings: Settings) -> OAuthCHPPClient:
@@ -128,3 +164,111 @@ def run_chpp_sync(session: SessionDependency) -> SyncResponse:
 @app.get("/api/squad", response_model=SquadResponse)
 def squad(session: SessionDependency) -> SquadResponse:
     return get_squad(session)
+
+
+@app.get("/api/training-plans", response_model=TrainingPlanListResponse)
+def training_plans(session: SessionDependency) -> TrainingPlanListResponse:
+    return list_training_plans(session)
+
+
+@app.post(
+    "/api/training-plans",
+    response_model=TrainingPlanResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_plan(
+    session: SessionDependency, payload: TrainingPlanCreate
+) -> TrainingPlanResponse:
+    return create_training_plan(session, payload)
+
+
+@app.get("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)
+def read_plan(session: SessionDependency, plan_id: int) -> TrainingPlanResponse:
+    return get_training_plan(session, plan_id)
+
+
+@app.patch("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)
+def update_plan(
+    session: SessionDependency, plan_id: int, payload: TrainingPlanUpdate
+) -> TrainingPlanResponse:
+    return update_training_plan(session, plan_id, payload)
+
+
+@app.delete(
+    "/api/training-plans/{plan_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def delete_plan(session: SessionDependency, plan_id: int) -> Response:
+    delete_training_plan(session, plan_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/blocks",
+    response_model=TrainingPlanResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_block(
+    session: SessionDependency, plan_id: int, payload: TrainingBlockCreate
+) -> TrainingPlanResponse:
+    return add_training_block(session, plan_id, payload)
+
+
+@app.patch(
+    "/api/training-plans/{plan_id}/blocks/{block_id}",
+    response_model=TrainingPlanResponse,
+)
+def update_block(
+    session: SessionDependency,
+    plan_id: int,
+    block_id: int,
+    payload: TrainingBlockUpdate,
+) -> TrainingPlanResponse:
+    return update_training_block(session, plan_id, block_id, payload)
+
+
+@app.delete(
+    "/api/training-plans/{plan_id}/blocks/{block_id}",
+    response_model=TrainingPlanResponse,
+)
+def delete_block(
+    session: SessionDependency, plan_id: int, block_id: int
+) -> TrainingPlanResponse:
+    return delete_training_block(session, plan_id, block_id)
+
+
+@app.put(
+    "/api/training-plans/{plan_id}/blocks/order",
+    response_model=TrainingPlanResponse,
+)
+def reorder_blocks(
+    session: SessionDependency,
+    plan_id: int,
+    payload: TrainingBlockOrderUpdate,
+) -> TrainingPlanResponse:
+    return reorder_training_blocks(session, plan_id, payload)
+
+
+@app.put(
+    "/api/training-plans/{plan_id}/blocks/{block_id}/assignments",
+    response_model=TrainingPlanResponse,
+)
+def configure_assignments(
+    session: SessionDependency,
+    plan_id: int,
+    block_id: int,
+    payload: TrainingAssignmentsReplace,
+) -> TrainingPlanResponse:
+    return replace_training_assignments(session, plan_id, block_id, payload)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/simulate", response_model=SimulationResponse
+)
+def simulate(
+    session: SessionDependency,
+    plan_id: int,
+    detailed: Annotated[bool, Query()] = False,
+) -> SimulationResponse:
+    return run_training_simulation(session, plan_id, detailed=detailed)
