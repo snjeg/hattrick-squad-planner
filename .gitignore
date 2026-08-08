@@ -1,0 +1,40 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# Dependencies and generated output
+node_modules/
+vendor/
+dist/
+build/
+coverage/
+.venv/
+venv/
+*.tsbuildinfo
+
+# Language caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local application data and credentials
+backend/data/
+/data/
+*.db
+*.sqlite
+*.sqlite3

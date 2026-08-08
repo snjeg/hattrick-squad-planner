@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HattrickData>
+  <FileName>players</FileName>
+  <Version>2.7</Version>
+  <FetchedDate>2026-08-08T09:15:00+00:00</FetchedDate>
+  <Team>
+    <TeamID>123456</TeamID>
+    <TeamName>FC Development</TeamName>
+    <PlayerList>
+      <Player>
+        <PlayerID>100001</PlayerID><FirstName>Marek</FirstName><NickName>Architect</NickName><LastName>Novak</LastName>
+        <Age>18</Age><AgeDays>43</AgeDays><TSI>5240</TSI><Salary>17400</Salary><IsAbroad>false</IsAbroad>
+        <MotherClubID>123456</MotherClubID><NationalityID>3</NationalityID><Specialty>1</Specialty>
+        <KeeperSkill>1</KeeperSkill><DefenderSkill>5</DefenderSkill><PlaymakerSkill>9</PlaymakerSkill><WingerSkill>5</WingerSkill><PassingSkill>7</PassingSkill><ScorerSkill>4</ScorerSkill><SetPiecesSkill>3</SetPiecesSkill>
+      </Player>
+      <Player>
+        <PlayerID>100002</PlayerID><FirstName>Leo</FirstName><LastName>Martinez</LastName>
+        <Age>19</Age><AgeDays>7</AgeDays><TSI>4180</TSI><Salary>20160</Salary><IsAbroad>true</IsAbroad>
+        <NationalityID>36</NationalityID><Specialty>2</Specialty>
+        <KeeperSkill>1</KeeperSkill><DefenderSkill>4</DefenderSkill><PlaymakerSkill>8</PlaymakerSkill><WingerSkill>8</WingerSkill><PassingSkill>6</PassingSkill><ScorerSkill>5</ScorerSkill><SetPiecesSkill>4</SetPiecesSkill>
+      </Player>
+      <Player>
+        <PlayerID>100003</PlayerID><FirstName>Tomas</FirstName><LastName>Dvorak</LastName>
+        <Age>22</Age><AgeDays>96</AgeDays><TSI>6890</TSI><Salary>22800</Salary><IsAbroad>false</IsAbroad>
+        <NationalityID>3</NationalityID><Specialty>0</Specialty>
+        <KeeperSkill>9</KeeperSkill><DefenderSkill>5</DefenderSkill><PlaymakerSkill>2</PlaymakerSkill><WingerSkill>1</WingerSkill><PassingSkill>3</PassingSkill><ScorerSkill>1</ScorerSkill><SetPiecesSkill>8</SetPiecesSkill>
+      </Player>
+    </PlayerList>
+  </Team>
+</HattrickData>
