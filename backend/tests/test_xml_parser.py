@@ -19,8 +19,16 @@ def test_parses_player_identity_snapshot_and_nullable_fields() -> None:
     assert player.age_years == 18
     assert player.age_days == 43
     assert player.playmaking == 9
+    assert player.stamina == 6
+    assert player.form == 7
+    assert player.experience == 5
+    assert player.loyalty == 20
+    assert player.injury_level == -1
+    assert player.cards == 1
     assert player.is_foreign is False
-    assert player.mother_club_id == 123456
+    assert player.nationality_id == 3
+    assert player.mother_club_id is None
+    assert player.is_mother_club is True
 
 
 def test_rejects_age_days_outside_hattrick_year() -> None:
@@ -30,6 +38,23 @@ def test_rejects_age_days_outside_hattrick_year() -> None:
 
     with pytest.raises(CHPPParseError, match="invalid AgeDays"):
         parse_players_xml(xml)
+
+
+def test_live_match_status_sentinel_is_normalized_as_unavailable() -> None:
+    xml = (
+        FIXTURE.read_text(encoding="utf-8")
+        .replace("<Cards>1</Cards>", "<Cards>NOT AVAILABLE</Cards>", 1)
+        .replace(
+            "<InjuryLevel>-1</InjuryLevel>",
+            "<InjuryLevel>NOT AVAILABLE</InjuryLevel>",
+            1,
+        )
+    )
+
+    player = parse_players_xml(xml).players[0]
+
+    assert player.cards is None
+    assert player.injury_level is None
 
 
 def test_rejects_html_or_other_non_players_document() -> None:

@@ -9,21 +9,21 @@
     <PlayerList>
       <Player>
         <PlayerID>100001</PlayerID><FirstName>Marek</FirstName><NickName>Architect</NickName><LastName>Novak</LastName>
-        <Age>18</Age><AgeDays>43</AgeDays><TSI>5240</TSI><Salary>17400</Salary><IsAbroad>false</IsAbroad>
-        <MotherClubID>123456</MotherClubID><NationalityID>3</NationalityID><Specialty>1</Specialty>
-        <KeeperSkill>1</KeeperSkill><DefenderSkill>5</DefenderSkill><PlaymakerSkill>9</PlaymakerSkill><WingerSkill>5</WingerSkill><PassingSkill>7</PassingSkill><ScorerSkill>4</ScorerSkill><SetPiecesSkill>3</SetPiecesSkill>
+        <Age>18</Age><AgeDays>43</AgeDays><TSI>5240</TSI><PlayerForm>7</PlayerForm><Experience>5</Experience><Loyalty>20</Loyalty><Salary>17400</Salary><IsAbroad>false</IsAbroad>
+        <MotherClubBonus>true</MotherClubBonus><CountryID>3</CountryID><Specialty>1</Specialty><Cards>1</Cards><InjuryLevel>-1</InjuryLevel>
+        <StaminaSkill>6</StaminaSkill><KeeperSkill>1</KeeperSkill><DefenderSkill>5</DefenderSkill><PlaymakerSkill>9</PlaymakerSkill><WingerSkill>5</WingerSkill><PassingSkill>7</PassingSkill><ScorerSkill>4</ScorerSkill><SetPiecesSkill>3</SetPiecesSkill>
       </Player>
       <Player>
         <PlayerID>100002</PlayerID><FirstName>Leo</FirstName><LastName>Martinez</LastName>
-        <Age>19</Age><AgeDays>7</AgeDays><TSI>4180</TSI><Salary>20160</Salary><IsAbroad>true</IsAbroad>
-        <NationalityID>36</NationalityID><Specialty>2</Specialty>
-        <KeeperSkill>1</KeeperSkill><DefenderSkill>4</DefenderSkill><PlaymakerSkill>8</PlaymakerSkill><WingerSkill>8</WingerSkill><PassingSkill>6</PassingSkill><ScorerSkill>5</ScorerSkill><SetPiecesSkill>4</SetPiecesSkill>
+        <Age>19</Age><AgeDays>7</AgeDays><TSI>4180</TSI><PlayerForm>6</PlayerForm><Experience>4</Experience><Loyalty>8</Loyalty><Salary>20160</Salary><IsAbroad>true</IsAbroad>
+        <MotherClubBonus>false</MotherClubBonus><CountryID>36</CountryID><Specialty>2</Specialty><Cards>0</Cards><InjuryLevel>2</InjuryLevel>
+        <StaminaSkill>7</StaminaSkill><KeeperSkill>1</KeeperSkill><DefenderSkill>4</DefenderSkill><PlaymakerSkill>8</PlaymakerSkill><WingerSkill>8</WingerSkill><PassingSkill>6</PassingSkill><ScorerSkill>5</ScorerSkill><SetPiecesSkill>4</SetPiecesSkill>
       </Player>
       <Player>
         <PlayerID>100003</PlayerID><FirstName>Tomas</FirstName><LastName>Dvorak</LastName>
-        <Age>22</Age><AgeDays>96</AgeDays><TSI>6890</TSI><Salary>22800</Salary><IsAbroad>false</IsAbroad>
-        <NationalityID>3</NationalityID><Specialty>0</Specialty>
-        <KeeperSkill>9</KeeperSkill><DefenderSkill>5</DefenderSkill><PlaymakerSkill>2</PlaymakerSkill><WingerSkill>1</WingerSkill><PassingSkill>3</PassingSkill><ScorerSkill>1</ScorerSkill><SetPiecesSkill>8</SetPiecesSkill>
+        <Age>22</Age><AgeDays>96</AgeDays><TSI>6890</TSI><PlayerForm>8</PlayerForm><Experience>7</Experience><Loyalty>14</Loyalty><Salary>22800</Salary><IsAbroad>false</IsAbroad>
+        <MotherClubBonus>false</MotherClubBonus><CountryID>3</CountryID><Specialty>0</Specialty><Cards>2</Cards><InjuryLevel>-1</InjuryLevel>
+        <StaminaSkill>6</StaminaSkill><KeeperSkill>9</KeeperSkill><DefenderSkill>5</DefenderSkill><PlaymakerSkill>2</PlaymakerSkill><WingerSkill>1</WingerSkill><PassingSkill>3</PassingSkill><ScorerSkill>1</ScorerSkill><SetPiecesSkill>8</SetPiecesSkill>
       </Player>
     </PlayerList>
   </Team>

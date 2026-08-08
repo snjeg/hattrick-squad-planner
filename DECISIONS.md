@@ -170,7 +170,7 @@ Do not implement training optimization yet.
 
 ## 2026-08-08 - Snapshot append semantics
 
-**Decision:** A successful sync upserts stable player identity fields and always inserts a new `PlayerSnapshot` for every observed player. The latest-squad view selects the snapshot with the greatest internal ID per player.
+**Decision:** A successful sync upserts stable player identity fields and always inserts a new `PlayerSnapshot` for every observed player. The latest-squad view orders observations by `observed_at`, then `sync_run_id`, then snapshot `id`, all descending.
 
 **Reason:** Repeated manual imports must preserve history for later subskill and wage analysis. Source fetch timestamps alone cannot identify separate observations when replaying fixtures.
 
@@ -182,4 +182,32 @@ Do not implement training optimization yet.
 
 **Reason:** This keeps local setup small and allows future PostgreSQL use without coupling domain code to SQLite.
 
-**Revisit:** Add managed migrations before deployment. Add appropriate encryption or an external secret store before any hosted or multi-user release; plaintext OAuth-token storage is acceptable only for the local Milestone 1 development database.
+**Status:** The direct-schema portion is superseded by the managed-schema decision below. Appropriate encryption or an external secret store is still required before any hosted or multi-user release; plaintext OAuth-token storage is acceptable only for local development.
+
+---
+
+## 2026-08-08 - Managed schema evolution
+
+**Decision:** Alembic owns application schema evolution. FastAPI startup does not create tables. The initial migration represents the complete schema through Milestone 1.1 and can adopt the prior unversioned local SQLite schema.
+
+**Reason:** Explicit, reviewable migrations are required for reliable SQLite development and future PostgreSQL deployment. Direct metadata creation remains only as a disposable test helper.
+
+---
+
+## 2026-08-08 - CHPP player field ownership
+
+**Decision:** Stamina, form, experience, loyalty, injury level, cards, wage, and TSI are append-only snapshot observations. Specialty, nationality, and the mother-club bonus flag are identity metadata. Do not populate the existing mother-club team ID without a player-details response.
+
+**Reason:** The current `players` XML exposes the observation values and `MotherClubBonus`, but not the mother club's identity. Separating mutable observations prevents syncs from overwriting history and avoids invented data.
+
+---
+
+## 2026-08-08 - Pinned senior training behavior
+
+**Decision:** The Milestone 2 engine follows Hattrick Organizer commit `31622ccd42e104e21a853122ffd269bd9e98dc88`. It preserves exact Hattrick age-days for progression but uses integer years in the formula, matching HO. Direct, partial, osmosis, and Set Pieces bonus exposure remain explicit components.
+
+**Reason:** A pinned implementation and named components make community-formula assumptions traceable and testable. Age-day interpolation or silently blending osmosis would invent behavior not present in the reference.
+
+**Revisit:** Revalidate the pinned formula and representative golden cases against a current HO installation and official Hattrick behavior before Milestone 3 optimization work.
+
+The 2026-08-08 direct source audit found one HO-internal discrepancy for Winger/Crossing: the active match-sector list excludes goalkeeper from osmosis, while an older position-ID array includes it. Follow the sector list used by `Player.calculateWeeklyTraining`; goalkeeper therefore receives no Winger osmosis. This supersedes the initial generalized mapping that treated every non-winger/non-wingback position as osmosis-eligible.

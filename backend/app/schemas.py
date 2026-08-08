@@ -37,10 +37,16 @@ class SquadPlayerResponse(BaseModel):
     passing: int | None
     scoring: int | None
     set_pieces: int | None
+    stamina: int | None
+    form: int | None
+    experience: int | None
+    loyalty: int | None
+    injury_level: int | None
     tsi: int | None
     wage: int | None
     is_foreign: bool | None
     specialty: int | None
+    is_mother_club: bool | None
     observed_at: datetime
 
 

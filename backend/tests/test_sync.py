@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -38,3 +39,49 @@ def test_latest_squad_contains_required_table_fields(session: Session) -> None:
     assert goalkeeper.wage == 22800
     assert goalkeeper.is_foreign is False
     assert goalkeeper.specialty == 0
+    assert goalkeeper.stamina == 6
+    assert goalkeeper.form == 8
+    assert goalkeeper.experience == 7
+    assert goalkeeper.loyalty == 14
+    assert goalkeeper.injury_level == -1
+
+
+def test_latest_snapshot_uses_observation_time_not_largest_id(session: Session) -> None:
+    player = Player(
+        hattrick_player_id=999,
+        team_id=123,
+        first_name="Chrono",
+        last_name="Logical",
+    )
+    older_run = SyncRun(source="mock", status="completed")
+    newer_run = SyncRun(source="mock", status="completed")
+    session.add_all([player, older_run, newer_run])
+    session.flush()
+    now = datetime.now(UTC)
+    newer_observation = PlayerSnapshot(
+        player_id=player.id,
+        sync_run_id=newer_run.id,
+        observed_at=now,
+        age_years=18,
+        age_days=20,
+        playmaking=8,
+    )
+    session.add(newer_observation)
+    session.flush()
+    # Inserted later and therefore has a greater ID, but is chronologically older.
+    session.add(
+        PlayerSnapshot(
+            player_id=player.id,
+            sync_run_id=older_run.id,
+            observed_at=now - timedelta(days=1),
+            age_years=18,
+            age_days=13,
+            playmaking=7,
+        )
+    )
+    session.commit()
+
+    latest = get_squad(session).players[0]
+
+    assert latest.playmaking == 8
+    assert latest.age_days == 20

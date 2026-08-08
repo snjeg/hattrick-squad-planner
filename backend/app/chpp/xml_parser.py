@@ -66,6 +66,25 @@ def _datetime(value: str | None) -> datetime | None:
         raise CHPPParseError(f"Invalid CHPP date: {value}") from error
 
 
+def _player_int(player: ElementTree.Element, name: str) -> int | None:
+    """Read players-v2.7 direct fields and tolerate playerdetails nesting."""
+    value = _int(player, name)
+    if value is None:
+        value = _int(player, "PlayerSkills", name)
+    return value
+
+
+def _status_int(player: ElementTree.Element, name: str) -> int | None:
+    """Treat CHPP's documented live-match sentinel as an absent observation."""
+    value = _text(player, name)
+    if value is None or value == "NOT AVAILABLE":
+        return None
+    try:
+        return int(value)
+    except ValueError as error:
+        raise CHPPParseError(f"Invalid integer in CHPP field {name}: {value}") from error
+
+
 def parse_players_xml(xml: str) -> NormalizedSquad:
     try:
         root = ElementTree.fromstring(xml)
@@ -110,18 +129,25 @@ def parse_players_xml(xml: str) -> NormalizedSquad:
                 first_name=first_name,
                 nickname=_text(player, "NickName"),
                 last_name=last_name,
-                nationality_id=_int(player, "NationalityID"),
+                nationality_id=_int(player, "CountryID") or _int(player, "NationalityID"),
                 mother_club_id=mother_club_id,
+                is_mother_club=_bool(player, "MotherClubBonus"),
                 specialty=_int(player, "Specialty"),
                 age_years=age_years,
                 age_days=age_days,
-                goalkeeper=_int(player, "KeeperSkill"),
-                defending=_int(player, "DefenderSkill"),
-                playmaking=_int(player, "PlaymakerSkill"),
-                winger=_int(player, "WingerSkill"),
-                passing=_int(player, "PassingSkill"),
-                scoring=_int(player, "ScorerSkill"),
-                set_pieces=_int(player, "SetPiecesSkill"),
+                goalkeeper=_player_int(player, "KeeperSkill"),
+                defending=_player_int(player, "DefenderSkill"),
+                playmaking=_player_int(player, "PlaymakerSkill"),
+                winger=_player_int(player, "WingerSkill"),
+                passing=_player_int(player, "PassingSkill"),
+                scoring=_player_int(player, "ScorerSkill"),
+                set_pieces=_player_int(player, "SetPiecesSkill"),
+                stamina=_player_int(player, "StaminaSkill"),
+                form=_int(player, "PlayerForm"),
+                experience=_int(player, "Experience"),
+                loyalty=_int(player, "Loyalty"),
+                injury_level=_status_int(player, "InjuryLevel"),
+                cards=_status_int(player, "Cards"),
                 tsi=_int(player, "TSI"),
                 wage=_int(player, "Salary"),
                 is_foreign=_bool(player, "IsAbroad"),
