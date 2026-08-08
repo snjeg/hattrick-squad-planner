@@ -1,4 +1,4 @@
-# Milestone 1 architecture
+# Architecture through Milestone 2
 
 ## Data flow
 
@@ -14,40 +14,54 @@ CHPPClient abstraction ----> mock XML fixture
       v
 XML normalizer
       |
-      +----> Player identity (insert or update factual identity fields)
+      +----> Player identity (upsert stable factual fields)
       |
-      +----> PlayerSnapshot (always append)
-      |
-      v
-SQLite through SQLAlchemy
+      +----> PlayerSnapshot (always append observations)
       |
       v
-Latest-snapshot query ----> React squad table
+SQLAlchemy database <---- Alembic-managed schema
+      |
+      v
+Chronologically latest snapshot query ----> React squad table
 ```
 
-Raw CHPP XML does not cross the adapter/normalizer boundary. Later engines should consume normalized domain data or their own explicit projections.
+Raw CHPP XML does not cross the adapter/normalizer boundary. The training engine consumes its own explicit normalized values and has no dependency on the CHPP adapter, database, FastAPI, or React.
 
-## Persistence
+## Persistence and schema evolution
 
-- `players` holds stable Hattrick identity and current identity metadata.
-- `player_snapshots` holds time-specific age, visible skills, TSI, wage, and foreign status.
-- `sync_runs` records the outcome and source of each manual import.
+- `players` holds stable Hattrick identity metadata, including specialty, nationality and whether the player receives a mother-club bonus.
+- `player_snapshots` holds time-specific age, visible skills, stamina, form, experience, loyalty, injury level, cards, TSI, wage, and foreign status.
+- `sync_runs` records each manual import's source and outcome.
 - `oauth_credentials` contains the single local user's CHPP access token in live mode.
 - `oauth_request_states` temporarily stores OAuth request-token state during authorization.
 
-Snapshot rows are never updated by the application. Repeated observations append rows and the squad endpoint selects the newest snapshot per identity.
+Snapshot rows are append-only. The squad query chooses the newest observation by `observed_at`, then `sync_run_id`, then snapshot `id`, all descending. The latter two fields provide deterministic tie-breaking rather than treating the largest auto-increment ID as chronological truth.
 
-All schema columns use SQLAlchemy types that work with SQLite and PostgreSQL. Milestone 1 creates the development schema directly; a migration tool is required before managed deployment.
+Alembic owns managed schema evolution. The initial revision represents the complete schema through Milestone 1.1 and can adopt the prior unversioned local SQLite schema. FastAPI startup does not silently create production tables; only disposable test setup may use SQLAlchemy metadata creation directly. Schema types and migration operations remain compatible with SQLite and PostgreSQL.
 
-## CHPP boundaries
+## Training domain
 
-The integration uses only CHPP OAuth and XML endpoints. It does not accept Hattrick passwords, scrape HTML, schedule downloads, submit match orders, or automate transfers.
+`backend/app/training/` separates reusable concerns:
 
-Mock mode is the development default. Its fictional XML passes through exactly the same parser and persistence service as live data.
+- `age.py` represents exact Hattrick years and days and deterministic week advancement.
+- `types.py` defines skills, positions, training types, and coach levels.
+- `factors.py` implements skill, age, coach, assistant, intensity, and stamina factors.
+- `coefficients.py` describes each training type and its eligible positions.
+- `eligibility.py` resolves full, partial, osmosis, and bonus exposure with the weekly cap.
+- `engine.py` composes those values into an immutable fractional-skill result.
 
-## Known Milestone 1 limits
+The calculation is deliberately a domain service, not an API route. It is ready for later week-by-week simulation without yet persisting estimated subskills or introducing optimization.
 
-- Live CHPP behavior requires credentials for an approved application and cannot be exercised by the test suite.
-- OAuth access tokens are stored in the local database without application-level encryption. Hosted use requires secret-at-rest protection and a credential-storage decision.
-- Specialty remains a numeric CHPP value. Human-readable labels should be added only after the code mapping is verified from an authoritative source.
-- The table displays the latest observation only; historical exploration belongs to a later milestone.
+## CHPP boundaries and credential safety
+
+The integration uses only CHPP OAuth and XML endpoints. It does not accept Hattrick passwords, scrape HTML, schedule downloads, submit match orders, or automate transfers. Mock mode remains the default and follows the same parser and persistence path as live data.
+
+Plaintext OAuth-token storage exists only to support single-user local development. It is forbidden for hosted or multi-user deployment; hosted work requires a separate encrypted credential-store design.
+
+## Current limits
+
+- Live CHPP behavior requires approved application credentials and manual validation.
+- The squad-list response reports the mother-club bonus but not the mother club's team identity; HO obtains that identity from a separate player-details response.
+- Specialty remains a numeric CHPP value until its labels are verified from an authoritative source.
+- Exact fractional skills are calculation inputs/results only and are not inferred or persisted.
+- Match-minute reconstruction, multi-week simulation, optimization, transfers, lineup ratings, tactics, finance projections, and training UI remain future work.

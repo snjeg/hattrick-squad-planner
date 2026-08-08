@@ -4,10 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hattrick-squad-planner-api"
-version = "0.1.0"
-description = "Milestone 1 API for Hattrick Squad Development Planner"
+version = "0.2.0"
+description = "Squad ingestion API and standalone training engine for Hattrick planning"
 requires-python = ">=3.12"
 dependencies = [
+  "alembic>=1.16,<2",
   "fastapi>=0.116,<1",
   "pydantic-settings>=2.10,<3",
   "requests>=2.32,<3",

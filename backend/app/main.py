@@ -1,5 +1,3 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from typing import Annotated
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import uuid4
@@ -11,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.chpp.client import AccessToken, MockCHPPClient, OAuthCHPPClient
 from app.config import Settings, get_settings
-from app.database import create_schema, get_session
+from app.database import get_session
 from app.models import OAuthCredential, OAuthRequestState
 from app.schemas import (
     AuthStartResponse,
@@ -25,13 +23,7 @@ from app.services import get_squad, sync_squad
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    create_schema()
-    yield
-
-
-app = FastAPI(title="Hattrick Squad Planner API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Hattrick Squad Planner API", version="0.2.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,

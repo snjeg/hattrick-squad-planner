@@ -29,6 +29,7 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
                     last_name=item.last_name,
                     nationality_id=item.nationality_id,
                     mother_club_id=item.mother_club_id,
+                    is_mother_club=item.is_mother_club,
                     specialty=item.specialty,
                 )
                 session.add(player)
@@ -40,6 +41,7 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
                 player.last_name = item.last_name
                 player.nationality_id = item.nationality_id
                 player.mother_club_id = item.mother_club_id
+                player.is_mother_club = item.is_mother_club
                 player.specialty = item.specialty
 
             session.add(
@@ -57,6 +59,12 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
                     passing=item.passing,
                     scoring=item.scoring,
                     set_pieces=item.set_pieces,
+                    stamina=item.stamina,
+                    form=item.form,
+                    experience=item.experience,
+                    loyalty=item.loyalty,
+                    injury_level=item.injury_level,
+                    cards=item.cards,
                     tsi=item.tsi,
                     wage=item.wage,
                     is_foreign=item.is_foreign,
@@ -84,8 +92,21 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
 
 
 def get_squad(session: Session) -> SquadResponse:
-    latest_snapshot_ids = (
-        select(func.max(PlayerSnapshot.id)).group_by(PlayerSnapshot.player_id).scalar_subquery()
+    ranked_snapshots = select(
+        PlayerSnapshot.id.label("snapshot_id"),
+        func.row_number()
+        .over(
+            partition_by=PlayerSnapshot.player_id,
+            order_by=(
+                PlayerSnapshot.observed_at.desc(),
+                PlayerSnapshot.sync_run_id.desc(),
+                PlayerSnapshot.id.desc(),
+            ),
+        )
+        .label("snapshot_rank"),
+    ).subquery()
+    latest_snapshot_ids = select(ranked_snapshots.c.snapshot_id).where(
+        ranked_snapshots.c.snapshot_rank == 1
     )
     rows = session.execute(
         select(Player, PlayerSnapshot)
@@ -106,10 +127,16 @@ def get_squad(session: Session) -> SquadResponse:
             passing=snapshot.passing,
             scoring=snapshot.scoring,
             set_pieces=snapshot.set_pieces,
+            stamina=snapshot.stamina,
+            form=snapshot.form,
+            experience=snapshot.experience,
+            loyalty=snapshot.loyalty,
+            injury_level=snapshot.injury_level,
             tsi=snapshot.tsi,
             wage=snapshot.wage,
             is_foreign=snapshot.is_foreign,
             specialty=player.specialty,
+            is_mother_club=player.is_mother_club,
             observed_at=snapshot.observed_at,
         )
         for player, snapshot in rows

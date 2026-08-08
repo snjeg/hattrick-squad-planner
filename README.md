@@ -1,22 +1,26 @@
 # Hattrick Squad Development Planner
 
-Milestone 1 provides a React/TypeScript squad view backed by FastAPI, SQLAlchemy, and SQLite. A user manually imports their own senior squad through a CHPP adapter; player identities are normalized and each successful sync adds immutable historical snapshots.
+Milestones 1, 1.1, and 2 provide a React/TypeScript squad view, CHPP senior-player ingestion, managed database migrations, and a standalone Python senior training engine. Player identities are normalized and each successful manual sync adds immutable historical snapshots.
 
-The local development default is mock CHPP XML, so the complete ingestion flow works without credentials or live Hattrick access.
+The local development default is mock CHPP XML, so ingestion works without credentials or live Hattrick access. Training calculations consume normalized domain inputs and do not call CHPP, FastAPI, or the frontend.
 
 ## Structure
 
 ```text
 backend/
-  app/                 FastAPI app, persistence, CHPP adapters, normalization
+  alembic/             Managed schema migrations
+  app/                 FastAPI app, persistence, and CHPP adapters
+  app/training/        Framework-independent training domain engine
   fixtures/chpp/       Fictional CHPP XML used in mock mode
-  tests/               Backend unit and API tests
+  tests/               Backend, migration, and training unit tests
 frontend/
   src/                 React application and tests
-docs/architecture.md   Milestone 1 architecture and data flow
+docs/architecture.md   Application boundaries and data flow
+docs/training-engine.md Formula traceability and training rules
+docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
-## Backend setup
+## Backend setup and migrations
 
 Python 3.12 or newer is required.
 
@@ -24,12 +28,23 @@ Python 3.12 or newer is required.
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e "./backend[dev]"
-uvicorn app.main:app --app-dir backend --reload
+cd backend
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1`.
+On Windows PowerShell, activate with `.\.venv\Scripts\Activate.ps1`. Run the Alembic commands from `backend/`:
 
-The API runs at `http://localhost:8000`. SQLite data is created under `backend/data/` when the server is started from the backend directory; override this with `DATABASE_URL` when needed.
+```powershell
+alembic upgrade head
+alembic current
+alembic revision --autogenerate -m "describe change"
+alembic downgrade -1
+```
+
+The initial migration creates a fresh schema and can adopt the previous unversioned Milestone 1 SQLite schema by adding the Milestone 1.1 columns. Application startup does not create or mutate the schema; run `alembic upgrade head` before starting it. Tests may continue to create disposable schemas directly.
+
+The API runs at `http://localhost:8000`. SQLite defaults to `backend/data/hattrick_planner.db`; override it with `DATABASE_URL`. Migrations use portable SQLAlchemy operations intended for SQLite and PostgreSQL.
 
 ## Frontend setup
 
@@ -49,13 +64,13 @@ The frontend runs at `http://localhost:5173` and proxies `/api` to FastAPI.
 2. Open `http://localhost:5173`.
 3. Select **Sync senior squad**.
 4. The fictional XML fixture is normalized, persisted, and displayed.
-5. Sync again to append another snapshot for each player while retaining the same identities.
+5. Sync again to append another snapshot for each player while retaining identities.
 
 ## Live CHPP configuration
 
 Copy `backend/.env.example` to `backend/.env`, set `CHPP_MODE=live`, and provide credentials for an approved CHPP application. Never commit that file or credential values.
 
-The live flow uses CHPP OAuth 1.0a request, authorization, and access-token endpoints. The application requests only the normal read access represented by its approved CHPP registration. Squad downloads occur only when the user selects the sync action; there is no scheduled or background sync.
+The live flow uses CHPP OAuth 1.0a request, authorization, and access-token endpoints and keeps the existing read-only, user-initiated restrictions. The current access-token database storage is plaintext and is **development-only for a single local user**. It must not be used for hosted or multi-user deployment; that requires encrypted secret-at-rest storage or a suitable external credential store.
 
 ## Verification
 
@@ -78,6 +93,6 @@ pnpm build
 - `POST /api/chpp/auth/start` - begin live OAuth authorization.
 - `GET /api/chpp/auth/callback` - complete live OAuth authorization.
 - `POST /api/chpp/sync` - user-triggered senior squad import.
-- `GET /api/squad` - latest snapshot for each imported player.
+- `GET /api/squad` - chronologically latest snapshot for each imported player.
 
-Read `PROJECT_SPEC.md`, `AGENTS.md`, and `DECISIONS.md` before extending the product beyond Milestone 1.
+There is deliberately no training-planner API or major UI yet. Read `PROJECT_SPEC.md`, `AGENTS.md`, and `DECISIONS.md` before extending the product.
