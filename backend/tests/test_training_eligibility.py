@@ -82,6 +82,34 @@ def test_set_pieces_goalkeeper_receives_documented_bonus() -> None:
     ) == pytest.approx(1.25)
 
 
+def test_set_pieces_goalkeeper_bonus_uses_only_goalkeeper_minutes() -> None:
+    exposure = resolve_training_exposure(
+        TrainingType.SET_PIECES,
+        (
+            PositionMinutes(Position.GOALKEEPER, 10),
+            PositionMinutes(Position.FORWARD, 80),
+        ),
+    )
+
+    assert exposure.bonus_minutes == 10
+    assert effective_time_factor(
+        exposure, definition_for(TrainingType.SET_PIECES)
+    ) == pytest.approx(1 + 0.25 * 10 / 90)
+
+
+def test_set_piece_taker_bonus_covers_played_minutes_without_double_counting() -> None:
+    exposure = resolve_training_exposure(
+        TrainingType.SET_PIECES,
+        (
+            PositionMinutes(Position.GOALKEEPER, 10),
+            PositionMinutes(Position.FORWARD, 80),
+        ),
+        is_set_piece_taker=True,
+    )
+
+    assert exposure.bonus_minutes == 90
+
+
 def test_position_appearance_cannot_exceed_match_length() -> None:
     with pytest.raises(ValueError, match="0 to 90"):
         PositionMinutes(Position.FORWARD, 91)

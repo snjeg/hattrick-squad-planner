@@ -55,10 +55,18 @@ def test_training_type_must_train_requested_skill() -> None:
         calculate_training(base_request(target_skill=Skill.SCORING))
 
 
-@pytest.mark.parametrize("bad_skill", [-0.1, 20.0, float("nan")])
+@pytest.mark.parametrize("bad_skill", [-0.1, 21.0, float("nan")])
 def test_invalid_fractional_skill(bad_skill: float) -> None:
     with pytest.raises(ValueError, match="Fractional skill"):
         base_request(current_skill=bad_skill)
+
+
+def test_visible_skill_20_with_subskill_is_supported() -> None:
+    result = calculate_training(base_request(current_skill=20.25))
+
+    assert result.visible_skill_before == 20
+    assert result.skill_gain > 0
+    assert result.skill_after == pytest.approx(20.25 + result.skill_gain)
 
 
 # Golden outputs are hand-evaluated from HO WeeklyTrainingType.java at commit

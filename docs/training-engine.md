@@ -32,7 +32,10 @@ gain = min(1,
 skill_after = skill_before + gain
 ```
 
-The skill factor uses the visible integer part of the fractional skill:
+The skill factor uses the visible integer part of the fractional skill. HO documents the
+formula input as visible skill 0-20, while `Player.getSub4Skill` retains a separate
+subskill in 0.0-0.999. The engine therefore accepts fractional skills in `[0, 21)`,
+including values such as `20.25`, and rejects 21.0:
 
 ```text
 visible skill < 9: 16.289 * exp(-0.1396 * visible_skill)
@@ -75,7 +78,12 @@ Position abbreviations: GK goalkeeper, WB wingback, CD central defender, W winge
 | Defensive Positions | defending | 1.38% | GK, WB, CD, W, IM | - | F at 1/6 |
 | Wing Attacks | winger | 3.12% | W, F | - | GK, WB, CD, IM at 5/39 |
 
-Set Pieces adds a separate 25% time bonus for a goalkeeper or designated set-piece taker. The bonus is capped at 90 minutes but can raise the total effective factor to 1.25, matching HO.
+Set Pieces adds a separate 25% time bonus for minutes in HO's `Goal` or
+`SetPiecesTaker` sectors. The bonus is capped at 90 minutes but can raise the total
+effective factor to 1.25. A player with 10 goalkeeper minutes and 80 outfield minutes
+therefore receives 10 goalkeeper bonus minutes, not 90. In the normalized resolver,
+`is_set_piece_taker=True` means the player held that role throughout the supplied
+appearances; exact role changes remain the caller's responsibility.
 
 Eligibility is not embedded in the formula. `TrainingDefinition` describes the rates and `resolve_training_exposure` converts positional appearances into full, partial, osmosis, and bonus minutes. `effective_time_factor` then applies HO's priority:
 
@@ -112,6 +120,6 @@ Golden tests are hand-evaluated from the pinned `WeeklyTrainingType.java` formul
 
 - HO intentionally feeds integer age years to this formula despite calculating training-date age more precisely. A future change to interpolate age-days would diverge from the pinned reference and needs evidence from Hattrick or a newer HO revision.
 - Osmosis and the Set Pieces goalkeeper/taker bonus are faithfully exposed because current HO predicts them. Before using them for automated long-range planning, compare representative cases in the HO UI and current official Hattrick training documentation. In particular, manually verify the Crossing goalkeeper inconsistency described above.
-- Match position/minute reconstruction is out of scope. Callers are responsible for producing accurate normalized exposures, including substitutions and multiple matches.
+- Match position/minute reconstruction is out of scope. Callers are responsible for producing accurate normalized exposures, including substitutions, set-piece-taker role changes, and multiple matches.
 - HO's formula caps a single weekly gain at 1.0. This is preserved, but boundary cases should be compared against a current HO installation before Milestone 3.
 - Community formulas can change. Revalidate the pinned revision, all coefficients, and golden cases before building optimization on top.

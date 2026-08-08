@@ -28,8 +28,8 @@ class TrainingRequest:
     exposure: TrainingExposure
 
     def __post_init__(self) -> None:
-        if not math.isfinite(self.current_skill) or not 0 <= self.current_skill < 20:
-            raise ValueError("Fractional skill must be finite and in [0, 20)")
+        if not math.isfinite(self.current_skill) or not 0 <= self.current_skill < 21:
+            raise ValueError("Fractional skill must be finite and in [0, 21)")
 
 
 @dataclass(frozen=True, slots=True)

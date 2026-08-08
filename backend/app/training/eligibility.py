@@ -40,10 +40,11 @@ def resolve_training_exposure(
     definition = definition_for(training_type)
     full = partial = osmosis = 0
     total_played = 0
-    played_goalkeeper = False
+    goalkeeper_minutes = 0
     for appearance in appearances:
         total_played += appearance.minutes
-        played_goalkeeper = played_goalkeeper or appearance.position is Position.GOALKEEPER
+        if appearance.position is Position.GOALKEEPER:
+            goalkeeper_minutes += appearance.minutes
         if appearance.position in definition.full_positions:
             full += appearance.minutes
         elif appearance.position in definition.partial_positions:
@@ -51,14 +52,17 @@ def resolve_training_exposure(
         elif appearance.position in definition.osmosis_positions:
             osmosis += appearance.minutes
 
-    receives_bonus = definition.bonus_fraction > 0 and (
-        played_goalkeeper or is_set_piece_taker
-    )
+    # HO derives Set Pieces bonus time from minutes in the Goal and
+    # SetPiecesTaker sectors. The boolean means the player occupied the latter
+    # sector throughout the supplied appearances; Goal time remains positional.
+    bonus_minutes = total_played if is_set_piece_taker else goalkeeper_minutes
     return TrainingExposure(
         full_minutes=full,
         partial_minutes=partial,
         osmosis_minutes=osmosis,
-        bonus_minutes=min(90, total_played) if receives_bonus else 0,
+        bonus_minutes=(
+            min(90, bonus_minutes) if definition.bonus_fraction > 0 else 0
+        ),
     )
 
 
