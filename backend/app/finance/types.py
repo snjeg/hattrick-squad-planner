@@ -8,8 +8,6 @@ class FinanceAssumptions:
     staff_costs: int
     youth_costs: int
     arena_costs: int
-    other_recurring_income: int = 0
-    other_recurring_costs: int = 0
     expected_home_match_revenue: int | None = None
     weeks_until_season_boundary: int | None = None
     sponsor_income_after_boundary: int | None = None

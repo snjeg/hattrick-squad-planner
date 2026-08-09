@@ -75,6 +75,23 @@ def test_projection_uses_only_home_fixtures_for_assumed_income(session: Session)
     assert projection.weekly_rows[1].home_fixture_ids == []
 
 
+def test_balance_dependent_financial_income_is_not_extrapolated(
+    session: Session,
+) -> None:
+    plan_id = finance_plan(session, weeks=2)
+
+    projection = run_finance_projection(session, plan_id)
+
+    assert [row.fixed_costs for row in projection.weekly_rows] == [42_500, 42_500]
+    assert [row.operating_cash_flow for row in projection.weekly_rows] == [
+        -37_860,
+        -37_860,
+    ]
+    assert any(
+        "balance-dependent" in note for note in projection.uncertainty_notes
+    )
+
+
 def test_projection_is_deterministic_and_never_mutates_facts(session: Session) -> None:
     plan_id = finance_plan(session, weeks=2)
     finance_before = session.scalar(select(func.count(FinanceSnapshot.id)))

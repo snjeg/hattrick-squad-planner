@@ -105,9 +105,11 @@ then applies the explicitly low-confidence approximation documented in
 `docs/wage-engine.md`. The module depends on normalized age/skill states, not CHPP,
 FastAPI, or React.
 
-`backend/app/finance/` consumes normalized recurring values, projected weekly squad
+`backend/app/finance/` consumes fixed staff/youth/arena costs, projected weekly squad
 wages, fixture events, and explicit assumptions. It keeps operating and capital cash flow
-separate and does not infer attendance, transfer proceeds, or recommendations.
+separate and does not infer attendance, transfer proceeds, or recommendations. Imported
+financial income/cost remains factual but is not extrapolated because it can depend on the
+club's changing balance.
 `finance_services.py` translates between plan-bound database facts and these independent
 domains.
 

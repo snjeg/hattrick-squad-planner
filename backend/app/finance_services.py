@@ -197,8 +197,6 @@ def run_finance_projection(
             factual.arena_costs if factual else None,
             "arena cost",
         ),
-        other_recurring_income=factual.financial_income if factual else 0,
-        other_recurring_costs=factual.financial_costs if factual else 0,
         expected_home_match_revenue=assumptions_row.expected_home_match_revenue,
         weeks_until_season_boundary=assumptions_row.weeks_until_season_boundary,
         sponsor_income_after_boundary=assumptions_row.sponsor_income_after_boundary,
@@ -234,6 +232,11 @@ def run_finance_projection(
         block_end_weeks=tuple(block_end_weeks),
     )
     notes = list(wage_projection.uncertainty_notes) + list(projected.uncertainty_notes)
+    if factual is not None and (factual.financial_income or factual.financial_costs):
+        notes.append(
+            "Current financial income/cost is balance-dependent and is not extrapolated "
+            "as a fixed recurring amount."
+        )
     if any(item.snapshot.is_foreign is None for item in plan.players):
         notes.append("Unknown foreign status was treated as domestic for wage estimation.")
     return FinanceProjectionResponse(

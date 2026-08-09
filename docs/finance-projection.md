@@ -35,9 +35,8 @@ For each plan week:
 ```text
 operating cash flow = sponsor income
                     + assumed revenue for each known home fixture
-                    + recurring financial income
                     - projected squad wages
-                    - staff, youth, arena, and recurring financial costs
+                    - fixed staff, youth, and arena costs
 
 capital cash flow = 0
 ending cash = prior cash + operating cash flow + capital cash flow
@@ -61,6 +60,11 @@ the boundary. After it, sponsor income is either the explicit post-boundary assu
 zero with an uncertainty note. If no boundary is provided, current sponsor income is
 extrapolated and labeled uncertain.
 
+CHPP financial income/cost remains a current factual observation, but it is deliberately
+excluded from future weeks. It may represent balance-dependent interest rather than a
+normal fixed recurring amount. Staff, youth, and arena maintenance remain fixed recurring
+costs unless the user explicitly overrides them on the plan.
+
 Fixture dates are bucketed relative to the bound finance observation using
 `ceil(days / 7)`. Only fixtures within the plan horizon participate. This is a transparent
 planning convention, not a claim about Hattrick's exact weekly economic-update timestamp.
@@ -81,7 +85,7 @@ planning convention, not a claim about Hattrick's exact weekly economic-update t
   salary fields. Both are retained as separate facts.
 - Wage changes after birthdays use the low-confidence model described in
   `docs/wage-engine.md`.
-- Temporary income/cost and spectator income are imported but are not extrapolated as
-  recurring future flows.
+- Financial income/cost, temporary income/cost, and spectator income are imported but are
+  not extrapolated as recurring future flows.
 - No financing interest thresholds, bankruptcy behavior, currency localization, or
   capital events are modeled.

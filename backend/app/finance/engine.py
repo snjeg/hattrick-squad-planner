@@ -13,8 +13,6 @@ def _validate(assumptions: FinanceAssumptions, weekly_wages: tuple[int, ...]) ->
         "staff costs": assumptions.staff_costs,
         "youth costs": assumptions.youth_costs,
         "arena costs": assumptions.arena_costs,
-        "other recurring income": assumptions.other_recurring_income,
-        "other recurring costs": assumptions.other_recurring_costs,
     }
     if assumptions.expected_home_match_revenue is not None:
         non_negative["expected home-match revenue"] = assumptions.expected_home_match_revenue
@@ -82,12 +80,10 @@ def project_finances(
             assumptions.staff_costs
             + assumptions.youth_costs
             + assumptions.arena_costs
-            + assumptions.other_recurring_costs
         )
         operating = (
             sponsor
             + match_income
-            + assumptions.other_recurring_income
             - squad_wage
             - fixed
         )

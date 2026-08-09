@@ -280,3 +280,7 @@ milestone.
 **Reason:** The imported current-week economy and fixture schedule do not establish future
 attendance or next-season sponsor values. Explicit omissions preserve traceability and
 keep operating sustainability separate from transfers.
+
+Current `IncomeFinancial` and `CostsFinancial` observations are also excluded from future
+weeks because balance-dependent interest is not a normal fixed recurring amount. Staff,
+youth, and arena maintenance remain recurring until explicitly overridden.
