@@ -82,3 +82,17 @@ def effective_time_factor(
         + definition.osmosis_fraction * osmosis / 90
         + definition.bonus_fraction * bonus / 90
     )
+
+
+def meaningful_capacity_units(exposure: TrainingExposure) -> float:
+    """Return scarce full/partial position usage in 90-minute slot units.
+
+    The simulator's aggregate capacity counts both full and partial positional
+    recipients as 90-minute slots. Match that unit here, while applying the
+    same full-before-partial weekly direct-training cap as
+    ``effective_time_factor``. Osmosis and Set Pieces bonus exposure are not
+    ordinary positional slots and therefore consume no capacity in this metric.
+    """
+    full = min(90, exposure.full_minutes)
+    partial = min(90 - full, exposure.partial_minutes)
+    return (full + partial) / 90

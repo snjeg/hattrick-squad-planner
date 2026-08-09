@@ -8,6 +8,8 @@ import type {
   LineupEntry,
   PlanTeamRating,
   PlanSquadEvaluation,
+  RosterScenarioEvaluation,
+  RosterScenarioRequest,
   SquadPlanningRole,
   EvaluationProfile,
   TeamRatingContext,
@@ -156,6 +158,15 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(value),
   }),
+  evaluateRosterScenarios: (planId: number, value: RosterScenarioRequest) =>
+    request<RosterScenarioEvaluation>(
+      `/api/training-plans/${planId}/roster-scenarios/evaluate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      },
+    ),
   planFinance: (planId: number) =>
     request<PlanFinance>(`/api/training-plans/${planId}/finance`),
   saveFinanceAssumptions: (planId: number, assumptions: FinanceAssumptions) =>

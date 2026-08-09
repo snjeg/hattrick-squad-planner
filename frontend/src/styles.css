@@ -146,6 +146,17 @@ input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0
 .training-cohort-strip span, .sector-pill-row span { padding: 6px 9px; border: 1px solid #cfd8d0; border-radius: 4px; background: #f7f9f7; font-size: 12px; }
 .lineup-inspection { margin: 0 24px 16px; border: 1px solid #d5ddd6; border-radius: 4px; background: #fbfcfb; }
 .lineup-inspection summary { padding: 12px 14px; color: #184f2b; font-weight: 800; cursor: pointer; }
+.roster-scenarios { margin-top: 24px; }
+.roster-scenario-editor { display: grid; grid-template-columns: repeat(4, minmax(135px, 1fr)); gap: 12px; padding: 18px 24px; border-top: 1px solid #dce2dc; }
+.roster-scenario-editor label { display: grid; gap: 6px; color: #617365; font-size: 11px; font-weight: 700; }
+.roster-scenario-editor .checkbox-label { display: flex; align-items: center; gap: 8px; min-height: 38px; align-self: end; }
+.roster-scenario-results { border-top: 1px solid #dce2dc; }
+.roster-scenario-results table small { display: block; margin-top: 3px; color: #78867d; }
+.scenario-timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; margin: 18px 24px; border: 1px solid #ccd6ce; border-radius: 4px; background: #f7f9f7; }
+.scenario-timeline > div { min-height: 90px; display: grid; align-content: start; gap: 4px; padding: 12px; border-left: 3px solid var(--green-800); }
+.scenario-timeline span { color: #68766d; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.scenario-timeline strong { color: #173829; }
+.scenario-timeline small { color: #6e5a22; }
 @media (max-width: 900px) { .squad-dashboard-grid { grid-template-columns: 1fr; } .squad-evaluation-controls { align-items: stretch; flex-direction: column; } }
 .contribution-table th:first-child { min-width: 150px; padding-left: 24px; }
 .contribution-table thead th:not(:first-child) { min-width: 130px; vertical-align: bottom; }
@@ -211,6 +222,7 @@ input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0
   .contribution-controls { grid-template-columns: repeat(2, 1fr); }
   .contribution-controls .primary-button { width: 100%; }
   .fixture-controls { grid-template-columns: 1fr; }
+  .roster-scenario-editor { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

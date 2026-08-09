@@ -1,5 +1,10 @@
 # Hattrick Squad Development Planner
 
+Milestone 7 adds checkpoint-based roster scenarios on top of whole-squad evaluation,
+training, wages, and finance. Managers can compare explicit sales, hypothetical acquisitions,
+paired replacements, and role changes against a no-transition baseline. Outputs remain
+decomposed evidence rather than automatic Keep/Sell/Buy advice.
+
 Milestone 6B adds whole-squad evaluation across bounded candidate lineups, formations,
 rotation, one-player replacement depth, planning roles, and training cohorts. Peak XI is
 only one decomposed component; results are “best found” comparisons, not recommendations.
@@ -22,6 +27,7 @@ backend/
   app/contribution/    Individual seven-sector contribution domain
   app/team_rating/     Selected-XI team-sector rating domain
   app/squad_evaluation/ Whole-squad candidate search and decomposed metrics
+  app/roster_scenario/ Checkpoint roster-transition scenario domain
   fixtures/chpp/       Fictional CHPP XML used in mock mode
   tests/               Backend, migration, and training unit tests
 frontend/
@@ -35,6 +41,7 @@ docs/attendance-model.md  Attendance tables, weather uncertainty, and revenue sh
 docs/player-contribution-engine.md Individual contribution formula and source audit
 docs/team-rating-engine.md Selected-lineup aggregation, modifiers, and source audit
 docs/squad-evaluation-engine.md Squad roles, search, scoring, depth and checkpoints
+docs/roster-scenario-engine.md Explicit sell/buy/role scenarios and baseline deltas
 docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
@@ -134,6 +141,18 @@ peak strength separate from depth, formation flexibility, and rotation, and repo
 beneficiaries without treating every non-starter as dead weight. See
 `docs/squad-evaluation-engine.md` for the bounded-search and scoring model.
 
+## Roster scenarios
+
+The **Roster Scenarios** workspace compares a user-created sale or hypothetical acquisition
+at `CURRENT`, `AFTER BLOCK`, or `FINAL` with the synthetic no-transition baseline. It shows
+competitive components, wage delta, low/base/high transfer cash, training-capacity changes,
+coverage warnings, and a transition timeline. Hypothetical players and transfer values are
+clearly labeled assumptions. The API supports multi-transition and sell-plus-buy scenarios.
+
+These results intentionally stop at evidence such as "small competitive loss, lower wages,
+one freed training place, and assumed sale proceeds." They do not append "therefore sell."
+See `docs/roster-scenario-engine.md` for timing and finance conventions.
+
 ## Live CHPP configuration
 
 Copy `backend/.env.example` to `backend/.env`, set `CHPP_MODE=live`, and provide credentials for an approved CHPP application. Never commit that file or credential values.
@@ -173,6 +192,8 @@ pnpm build
 - `POST /api/training-plans/{id}/team-ratings` - evaluate a selected XI at a plan checkpoint.
 - `POST /api/squad-evaluations/calculate` - evaluate a supplied normalized senior squad.
 - `POST /api/training-plans/{id}/squad-evaluation` - evaluate plan roles at one or all checkpoints.
+- `POST /api/training-plans/{id}/roster-scenarios/evaluate` - compare explicit checkpoint roster transitions with the no-transition baseline.
+- `POST /api/roster-scenarios/evaluate` - evaluate supplied normalized checkpoint states through the same scenario domain.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
 - `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.

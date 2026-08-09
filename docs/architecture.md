@@ -1,4 +1,4 @@
-# Architecture through Milestone 6B
+# Architecture through Milestone 7
 
 ## Data flow
 
@@ -39,6 +39,25 @@ depth, flexibility, rotation, replacement, role-depth, and training-cohort metri
 roles are request-local and require no schema change. `squad_evaluation_services.py` adapts
 supplied states or immutable plan checkpoints and reuses training eligibility for cohort
 classification; it never duplicates training or team-rating formulas.
+
+`backend/app/roster_scenario/` composes immutable plan checkpoints with explicit sales,
+purchases, and role changes. It calls squad evaluation, consumes plan-projected wage/finance
+facts, and returns baseline-relative competitive, training, wage, cash, and coverage evidence.
+The domain is policy-free: it does not rank scenarios or emit Keep/Sell/Buy recommendations.
+`roster_scenario_services.py` is the SQLAlchemy/FastAPI adapter and never mutates factual rows.
+
+```text
+Training-plan checkpoints + finance periods + user transition assumptions
+                              |
+                              v
+                  roster scenario domain
+                    /       |        \
+                   v        v         v
+          squad evaluation  wages   training capacity
+                   \        |         /
+                    v       v        v
+             baseline-relative evidence + low/base/high cash
+```
 
 ```text
 Latest completed sync
@@ -160,5 +179,6 @@ Plaintext OAuth-token storage exists only to support single-user local developme
 - The simple plan UI supports one appearance per player while the API supports mixed segments.
 - Capacity is an aggregate two-match validator, not an automatic lineup or match simulator.
 - Exact wages or attendance, stadium optimization, transfers, match-result prediction, and
-  finance recommendations remain future work. Wage and attendance results are labeled
+  market search, match-result prediction, and finance recommendations remain future work.
+  Milestone 7 evaluates only explicit manual transfer scenarios. Wage and attendance results are labeled
   approximations, not verified reproductions of Hattrick's private formulas.

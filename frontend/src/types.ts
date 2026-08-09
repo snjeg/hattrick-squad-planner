@@ -485,3 +485,188 @@ export interface FinanceProjection {
   assumptions: FinanceAssumptions
   uncertainty_notes: string[]
 }
+
+export type RosterTransitionType = 'sell' | 'buy' | 'role_change'
+
+export interface RosterScenarioRequest {
+  members: Array<{ player_id: number; planning_role: SquadPlanningRole }>
+  profiles: EvaluationProfile[]
+  context: TeamRatingContext
+  scenarios: Array<{
+    scenario_id: string
+    name: string
+    transitions: Array<{
+      transition_id: string
+      transition_type: RosterTransitionType
+      effective_checkpoint: string
+      player_id?: number
+      hypothetical_id?: string
+      transfer_value?: {
+        low: number | null
+        base: number
+        high: number | null
+        confidence: string
+        source_note: string | null
+      }
+      transfer_costs: number
+      new_role?: SquadPlanningRole
+      note: string | null
+    }>
+    hypothetical_players: Array<{
+      hypothetical_id: string
+      label: string
+      age_years: number
+      age_days: number
+      state: {
+        goalkeeper: number
+        defending: number
+        playmaking: number
+        winger: number
+        passing: number
+        scoring: number
+        set_pieces: number
+        stamina: number
+        form: number
+        experience: number
+        loyalty: number
+        mother_club: false
+        specialty: number | null
+      }
+      nationality: number | null
+      is_foreign: boolean
+      wage_override: number | null
+      planning_role: SquadPlanningRole
+      allowed_positions: Position[] | null
+      preferred_positions: Position[]
+      block_assignments: Array<{
+        block_id: number
+        appearances: Array<{ position: Position; minutes: number }>
+        is_set_piece_taker: boolean
+      }>
+      source_note: string | null
+    }>
+    constraints: {
+      minimum_cash_reserve: number | null
+      max_transfer_spend: number | null
+      max_net_transfer_spend: number | null
+    }
+    retention_intent: Record<string, string>
+  }>
+}
+
+export interface PriceCaseAmounts {
+  low: number
+  base: number
+  high: number
+}
+
+export interface RosterScenarioCheckpoint {
+  checkpoint_id: string
+  label: string
+  order: number
+  block_id: number | null
+  block_order: number | null
+  week: number
+  roster_before: string[]
+  roster_after: string[]
+  roster_players: Array<{
+    player_key: string
+    name: string
+    source: 'factual' | 'hypothetical'
+    source_quality: string
+    planning_role: SquadPlanningRole
+    weekly_wage: number
+    wage_source: 'factual' | 'supplied_assumption' | 'model_estimate'
+    training_participation: TrainingParticipation
+    meaningful_capacity_consumption: number
+    is_foreign: boolean
+  }>
+  transitions_applied: Array<{
+    transition_id: string
+    transition_type: RosterTransitionType
+    player_key: string
+    label: string
+    cash_flow: PriceCaseAmounts
+    note: string | null
+  }>
+  finance: {
+    opening_cash: PriceCaseAmounts
+    operating_cash_flow: number
+    transfer_cash_flow: PriceCaseAmounts
+    closing_cash: PriceCaseAmounts
+    weekly_wages: number
+    cumulative_transfer_balance: PriceCaseAmounts
+    cumulative_transfer_spend: PriceCaseAmounts
+  }
+  training: {
+    meaningful_capacity: number
+    beneficiaries: number
+    consumed_capacity: number
+    unused_capacity: number
+    full: number
+    partial: number
+    osmosis: number
+    bonus: number
+    mixed: number
+  }
+  metrics: {
+    composite_score: number | null
+    peak_strength: number | null
+    depth: number | null
+    flexibility: number | null
+    rotation: number | null
+    weekly_wages: number
+    cash: PriceCaseAmounts
+    roster_size: number
+    training_beneficiaries: number
+    unused_training_capacity: number
+  }
+  delta_vs_baseline: null | {
+    composite_score: number | null
+    peak_strength: number | null
+    depth: number | null
+    flexibility: number | null
+    rotation: number | null
+    weekly_wages: number
+    cash: PriceCaseAmounts
+    roster_size: number
+    training_beneficiaries: number
+    unused_training_capacity: number
+  }
+  transition_impacts: Array<{
+    transition_id: string
+    transition_type: RosterTransitionType
+    player_key: string
+    competitive_delta: number | null
+    replacement_drop: number | null
+    role_depth_delta: number | null
+    training_slot_delta: number
+    weekly_wage_delta: number
+    capital_delta: PriceCaseAmounts
+    lineup_participation: boolean | null
+    lineup_formation: string | null
+    replacement_formation: string | null
+    useful_assignments: string[]
+    contribution_surface: Record<string, number>
+    evidence: string[]
+  }>
+  coverage_gaps: Array<{ role: string; severity: string; detail: string }>
+  warnings: string[]
+}
+
+export interface RosterScenarioResult {
+  scenario_id: string
+  name: string
+  checkpoints: RosterScenarioCheckpoint[]
+  constraint_violations: string[]
+  warnings: string[]
+  model_version: string
+}
+
+export interface RosterScenarioEvaluation {
+  plan_id: number | null
+  baseline: RosterScenarioResult
+  scenarios: RosterScenarioResult[]
+  model_version: string
+  source_labels: Record<string, string>
+}
