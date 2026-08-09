@@ -193,6 +193,7 @@ pnpm build
 - `POST /api/squad-evaluations/calculate` - evaluate a supplied normalized senior squad.
 - `POST /api/training-plans/{id}/squad-evaluation` - evaluate plan roles at one or all checkpoints.
 - `POST /api/training-plans/{id}/roster-scenarios/evaluate` - compare explicit checkpoint roster transitions with the no-transition baseline.
+- `POST /api/roster-scenarios/evaluate` - evaluate supplied normalized checkpoint states through the same scenario domain.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
 - `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.

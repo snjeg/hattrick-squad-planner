@@ -35,7 +35,10 @@ from app.plan_services import (
     update_training_plan,
 )
 from app.roster_scenario import RosterScenarioValidationError
-from app.roster_scenario_services import evaluate_plan_roster_scenarios
+from app.roster_scenario_services import (
+    evaluate_plan_roster_scenarios,
+    evaluate_supplied_roster_scenarios,
+)
 from app.schemas import (
     AuthStartResponse,
     CHPPStatusResponse,
@@ -51,6 +54,7 @@ from app.schemas import (
     PlanTeamRatingRequest,
     PlanTeamRatingResponse,
     PlayerContributionAnalysisResponse,
+    RosterScenarioCalculateRequest,
     RosterScenarioEvaluationResponse,
     SimulationResponse,
     SquadEvaluationCalculateRequest,
@@ -293,6 +297,16 @@ def calculate_plan_roster_scenarios(
     payload: PlanRosterScenarioRequest,
 ) -> RosterScenarioEvaluationResponse:
     return evaluate_plan_roster_scenarios(session, plan_id, payload)
+
+
+@app.post(
+    "/api/roster-scenarios/evaluate",
+    response_model=RosterScenarioEvaluationResponse,
+)
+def calculate_supplied_roster_scenarios(
+    payload: RosterScenarioCalculateRequest,
+) -> RosterScenarioEvaluationResponse:
+    return evaluate_supplied_roster_scenarios(payload)
 
 
 @app.patch("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)

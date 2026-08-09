@@ -39,6 +39,7 @@ from app.schemas import (
     PlanRosterScenarioRequest,
     PriceCaseAmountsResponse,
     RosterFinanceSnapshotResponse,
+    RosterScenarioCalculateRequest,
     RosterScenarioCheckpointResponse,
     RosterScenarioDefinitionRequest,
     RosterScenarioEvaluationResponse,
@@ -47,6 +48,8 @@ from app.schemas import (
     ScenarioDeltaResponse,
     ScenarioMetricsResponse,
     ScenarioRosterPlayerResponse,
+    SuppliedRosterPlayerRequest,
+    SuppliedRosterScenarioDefinitionRequest,
     TrainingCapacitySnapshotResponse,
     TransitionImpactResponse,
 )
@@ -717,6 +720,189 @@ def evaluate_plan_roster_scenarios(
     )
     return RosterScenarioEvaluationResponse(
         plan_id=plan_id,
+        baseline=_result_response(result.baseline),
+        scenarios=[_result_response(item) for item in result.scenarios],
+        model_version=result.model_version,
+    )
+
+
+def _supplied_player(payload: SuppliedRosterPlayerRequest) -> ScenarioPlayer:
+    state = PlayerMatchState(**payload.state.model_dump())
+    return ScenarioPlayer(
+        player_key=payload.player_key,
+        evaluation_id=payload.evaluation_id,
+        name=payload.name,
+        age=HattrickAge(payload.age_years, payload.age_days),
+        skills={
+            Skill.GOALKEEPING: state.goalkeeper,
+            Skill.DEFENDING: state.defending,
+            Skill.PLAYMAKING: state.playmaking,
+            Skill.WINGER: state.winger,
+            Skill.PASSING: state.passing,
+            Skill.SCORING: state.scoring,
+            Skill.SET_PIECES: state.set_pieces,
+        },
+        match_state=state,
+        planning_role=payload.planning_role,
+        weekly_wage=payload.weekly_wage,
+        wage_source=payload.wage_source,
+        source=payload.source,
+        allowed_positions=(
+            frozenset(payload.allowed_positions)
+            if payload.allowed_positions is not None
+            else None
+        ),
+        preferred_positions=frozenset(payload.preferred_positions),
+        training_participation=payload.training_participation,
+        nationality=payload.nationality,
+        is_foreign=payload.is_foreign,
+        source_quality=payload.source_quality,
+        notes=payload.notes,
+    )
+
+
+def _supplied_scenario(
+    payload: SuppliedRosterScenarioDefinitionRequest,
+) -> RosterScenario:
+    for item in payload.hypothetical_players:
+        for checkpoint_id, supplied in item.states_by_checkpoint.items():
+            state = supplied.state
+            required = (
+                state.goalkeeper,
+                state.defending,
+                state.playmaking,
+                state.winger,
+                state.passing,
+                state.scoring,
+                state.set_pieces,
+                state.stamina,
+                state.form,
+                state.experience,
+                state.loyalty,
+            )
+            if any(value is None for value in required):
+                raise PlanValidationError(
+                    f"Hypothetical player {item.hypothetical_id} is incomplete at "
+                    f"checkpoint {checkpoint_id}"
+                )
+            if state.mother_club not in (None, False):
+                raise PlanValidationError(
+                    "Hypothetical acquisitions cannot receive mother-club bonus"
+                )
+    hypothetical = tuple(
+        HypotheticalPlayer(
+            hypothetical_id=item.hypothetical_id,
+            label=item.label,
+            states_by_checkpoint={
+                checkpoint_id: _supplied_player(state.model_copy(update={
+                    "player_key": item.hypothetical_id,
+                    "source": PlayerSource.HYPOTHETICAL,
+                }))
+                for checkpoint_id, state in item.states_by_checkpoint.items()
+            },
+            assumption_quality=item.assumption_quality,
+            source_note=item.source_note,
+        )
+        for item in payload.hypothetical_players
+    )
+    transitions: list[RosterTransition] = []
+    for transition_payload in payload.transitions:
+        if transition_payload.transition_type is TransitionType.SELL:
+            if (
+                transition_payload.player_id is None
+                or transition_payload.transfer_value is None
+            ):
+                raise PlanValidationError("Sell transitions require player_id and transfer_value")
+            transitions.append(
+                SellTransition(
+                    transition_payload.transition_id,
+                    transition_payload.effective_checkpoint,
+                    f"player:{transition_payload.player_id}",
+                    _price(transition_payload.transfer_value),
+                    transition_payload.transfer_costs,
+                    transition_payload.note,
+                )
+            )
+        elif transition_payload.transition_type is TransitionType.BUY:
+            if (
+                transition_payload.hypothetical_id is None
+                or transition_payload.transfer_value is None
+            ):
+                raise PlanValidationError(
+                    "Buy transitions require hypothetical_id and transfer_value"
+                )
+            transitions.append(
+                BuyTransition(
+                    transition_payload.transition_id,
+                    transition_payload.effective_checkpoint,
+                    transition_payload.hypothetical_id,
+                    _price(transition_payload.transfer_value),
+                    transition_payload.transfer_costs,
+                    transition_payload.note,
+                )
+            )
+        else:
+            player_key = (
+                f"player:{transition_payload.player_id}"
+                if transition_payload.player_id is not None
+                else transition_payload.hypothetical_id
+            )
+            if player_key is None or transition_payload.new_role is None:
+                raise PlanValidationError(
+                    "Role-change transitions require a player reference and new_role"
+                )
+            transitions.append(
+                RoleChangeTransition(
+                    transition_payload.transition_id,
+                    transition_payload.effective_checkpoint,
+                    player_key,
+                    transition_payload.new_role,
+                    transition_payload.note,
+                )
+            )
+    return RosterScenario(
+        scenario_id=payload.scenario_id,
+        name=payload.name,
+        transitions=tuple(transitions),
+        hypothetical_players=hypothetical,
+        constraints=ScenarioConstraints(**payload.constraints.model_dump()),
+        retention_intent=payload.retention_intent,
+    )
+
+
+def evaluate_supplied_roster_scenarios(
+    payload: RosterScenarioCalculateRequest,
+) -> RosterScenarioEvaluationResponse:
+    result = evaluate_roster_scenarios(
+        RosterScenarioRequest(
+            checkpoints=tuple(
+                BaseCheckpointState(
+                    checkpoint=ScenarioCheckpoint(
+                        checkpoint_id=item.checkpoint_id,
+                        label=item.label,
+                        order=item.order,
+                        block_id=item.block_id,
+                        block_order=item.block_order,
+                        week=item.week,
+                        weeks_from_previous=item.weeks_from_previous,
+                        baseline_operating_cash_flow_from_previous=(
+                            item.baseline_operating_cash_flow_from_previous
+                        ),
+                        meaningful_training_capacity=item.meaningful_training_capacity,
+                    ),
+                    players=tuple(_supplied_player(player) for player in item.players),
+                )
+                for item in payload.checkpoints
+            ),
+            scenarios=tuple(_supplied_scenario(item) for item in payload.scenarios),
+            opening_cash=payload.opening_cash,
+            context=_context(payload.context),
+            profiles=tuple(payload.profiles),
+            search=_search(payload.search),
+        )
+    )
+    return RosterScenarioEvaluationResponse(
+        plan_id=None,
         baseline=_result_response(result.baseline),
         scenarios=[_result_response(item) for item in result.scenarios],
         model_version=result.model_version,

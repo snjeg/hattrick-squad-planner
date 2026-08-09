@@ -662,7 +662,7 @@ export interface RosterScenarioResult {
 }
 
 export interface RosterScenarioEvaluation {
-  plan_id: number
+  plan_id: number | null
   baseline: RosterScenarioResult
   scenarios: RosterScenarioResult[]
   model_version: string

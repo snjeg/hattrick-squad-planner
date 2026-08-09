@@ -768,6 +768,73 @@ class RosterScenarioDefinitionRequest(BaseModel):
     retention_intent: dict[str, str] = Field(default_factory=dict)
 
 
+class SuppliedRosterPlayerRequest(BaseModel):
+    player_key: str = Field(min_length=1, max_length=120)
+    evaluation_id: int
+    name: str = Field(min_length=1, max_length=120)
+    age_years: int = Field(ge=17)
+    age_days: int = Field(ge=0, le=111)
+    state: SuppliedPlayerMatchState
+    planning_role: SquadPlanningRole
+    weekly_wage: int = Field(ge=0)
+    wage_source: WageSource
+    source: PlayerSource = PlayerSource.FACTUAL
+    allowed_positions: list[PositionRole] | None = None
+    preferred_positions: list[PositionRole] = Field(default_factory=list)
+    training_participation: TrainingParticipation = TrainingParticipation.NONE
+    nationality: int | None = Field(default=None, ge=1)
+    is_foreign: bool = False
+    source_quality: str = Field(default="supplied", max_length=80)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class SuppliedRosterCheckpointRequest(BaseModel):
+    checkpoint_id: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=120)
+    order: int = Field(ge=0)
+    block_id: int | None = None
+    block_order: int | None = None
+    week: int = Field(ge=0)
+    weeks_from_previous: int = Field(ge=0)
+    baseline_operating_cash_flow_from_previous: int
+    meaningful_training_capacity: int = Field(ge=0)
+    players: list[SuppliedRosterPlayerRequest]
+
+
+class SuppliedHypotheticalPlayerRequest(BaseModel):
+    hypothetical_id: str = Field(pattern=r"^hyp:[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+    label: str = Field(min_length=1, max_length=120)
+    states_by_checkpoint: dict[str, SuppliedRosterPlayerRequest]
+    assumption_quality: str = Field(default="assumption", max_length=80)
+    source_note: str | None = Field(default=None, max_length=500)
+
+
+class SuppliedRosterScenarioDefinitionRequest(BaseModel):
+    scenario_id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    transitions: list[RosterTransitionRequest]
+    hypothetical_players: list[SuppliedHypotheticalPlayerRequest] = Field(
+        default_factory=list
+    )
+    constraints: RosterScenarioConstraintsRequest = Field(
+        default_factory=RosterScenarioConstraintsRequest
+    )
+    retention_intent: dict[str, str] = Field(default_factory=dict)
+
+
+class RosterScenarioCalculateRequest(BaseModel):
+    checkpoints: list[SuppliedRosterCheckpointRequest]
+    scenarios: list[SuppliedRosterScenarioDefinitionRequest]
+    opening_cash: int
+    profiles: list[EvaluationProfile] = Field(
+        default_factory=lambda: [EvaluationProfile.BALANCED]
+    )
+    context: TeamRatingContextRequest
+    search: SquadSearchConfigurationRequest = Field(
+        default_factory=SquadSearchConfigurationRequest
+    )
+
+
 class PlanRosterScenarioRequest(BaseModel):
     members: list[PlanSquadMemberRequest]
     scenarios: list[RosterScenarioDefinitionRequest]
@@ -901,7 +968,7 @@ class RosterScenarioResultResponse(BaseModel):
 
 
 class RosterScenarioEvaluationResponse(BaseModel):
-    plan_id: int
+    plan_id: int | None
     baseline: RosterScenarioResultResponse
     scenarios: list[RosterScenarioResultResponse]
     model_version: str

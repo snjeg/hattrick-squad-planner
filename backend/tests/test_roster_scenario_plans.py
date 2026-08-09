@@ -234,3 +234,95 @@ def test_incomplete_hypothetical_is_rejected_without_silent_defaults(
     )
     assert response.status_code == 422
     assert "incomplete" in response.json()["detail"].lower()
+
+
+def test_supplied_state_api_reuses_scenario_domain_without_a_saved_plan(
+    client: TestClient,
+) -> None:
+    players = []
+    for player_id in range(1, 4):
+        players.append(
+            {
+                "player_key": f"player:{player_id}",
+                "evaluation_id": player_id,
+                "name": f"Player {player_id}",
+                "age_years": 20,
+                "age_days": 10,
+                "state": {
+                    "goalkeeper": 10 if player_id == 1 else 3,
+                    "defending": 8,
+                    "playmaking": 8,
+                    "winger": 7,
+                    "passing": 7,
+                    "scoring": 7,
+                    "set_pieces": 5,
+                    "stamina": 7,
+                    "form": 7,
+                    "experience": 5,
+                    "loyalty": 10,
+                    "mother_club": False,
+                    "specialty": None,
+                },
+                "planning_role": "rotation",
+                "weekly_wage": 5_000,
+                "wage_source": "factual",
+                "source": "factual",
+                "training_participation": "none",
+            }
+        )
+    response = client.post(
+        "/api/roster-scenarios/evaluate",
+        json={
+            "opening_cash": 1_000_000,
+            "checkpoints": [
+                {
+                    "checkpoint_id": "current",
+                    "label": "Current",
+                    "order": 0,
+                    "week": 0,
+                    "weeks_from_previous": 0,
+                    "baseline_operating_cash_flow_from_previous": 0,
+                    "meaningful_training_capacity": 0,
+                    "players": players,
+                }
+            ],
+            "scenarios": [
+                {
+                    "scenario_id": "sale",
+                    "name": "Supplied sale",
+                    "transitions": [
+                        {
+                            "transition_id": "sell-3",
+                            "transition_type": "sell",
+                            "effective_checkpoint": "current",
+                            "player_id": 3,
+                            "transfer_value": {"base": 250_000},
+                        }
+                    ],
+                }
+            ],
+            "profiles": ["balanced"],
+            "context": {
+                "team_spirit": 5.5,
+                "confidence": 5,
+                "coach_style": 0,
+                "attitude": "normal",
+                "location": "away",
+                "tactic": "normal",
+                "weather": "overcast",
+            },
+            "search": {
+                "beam_width": 10,
+                "candidates_per_slot": 11,
+                "evaluated_per_template": 5,
+                "retained_per_profile": 3,
+                "diversity_player_changes": 2,
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["plan_id"] is None
+    assert body["scenarios"][0]["checkpoints"][0]["finance"][
+        "transfer_cash_flow"
+    ]["base"] == 250_000

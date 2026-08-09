@@ -127,7 +127,9 @@ squad evaluation instead of a fabricated rating.
 
 ## API and UI
 
-`POST /api/training-plans/{plan_id}/roster-scenarios/evaluate` accepts multiple named scenarios.
+`POST /api/roster-scenarios/evaluate` accepts already-materialized checkpoint states for
+external/domain callers. `POST /api/training-plans/{plan_id}/roster-scenarios/evaluate`
+materializes the same request from a saved plan. Both accept multiple named scenarios.
 The Roster Scenarios workspace currently provides a compact single-action editor for a sale or
 hypothetical acquisition, checkpoint/price controls, a hypothetical-player editor, baseline
 comparison, checkpoint timeline, low/base/high finance, and transition evidence. The API/domain
