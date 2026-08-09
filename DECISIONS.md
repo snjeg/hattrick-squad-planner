@@ -4,6 +4,24 @@ This file records product and architectural decisions that materially affect fut
 
 ---
 
+## 2026-08-09 — Squad quality is decomposed and search-bounded
+
+**Decision:** Milestone 6B evaluates the whole squad through deterministic bounded candidate
+search over every Milestone 6A formation. Planning roles remain checkpoint-local. The optional
+competitive composite weights peak strength 40%, one-player depth resilience 25%, formation
+flexibility 20%, and rotation quality 15%; all components remain separately available.
+
+**Reason:** Best-XI strength alone rewards brittle squads, and double-counting it alongside an
+identical best formation would obscure depth. A bounded beam is locally interactive and
+traceable for 20–25 players without pretending to be the future global optimizer.
+
+**Consequence:** Results are labeled “best found,” left/right mirror pruning relies on symmetric
+v1 profile weights, and replacement sensitivity performs an equivalent bounded re-search for
+one unavailable starter at a time. Transfer, finance, acquisition, and automatic training
+decisions remain outside this domain.
+
+---
+
 ## 2026-08-09 — Team ratings evaluate explicit lineups at match start
 
 **Decision:** Milestone 6A accepts one user-selected legal XI and explicit match context. It

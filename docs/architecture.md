@@ -1,4 +1,4 @@
-# Architecture through Milestone 6A
+# Architecture through Milestone 6B
 
 ## Data flow
 
@@ -31,8 +31,14 @@ Raw CHPP XML does not cross the adapter/normalizer boundary. The training engine
 The selected-lineup engine under `backend/app/team_rating/` is likewise a pure domain. It
 consumes Milestone 5 player contributions, applies verified team-layer factors, and returns
 seven match-start sector ratings. `team_rating_services.py` materializes current/projected
-plan states before entering the domain. The frontend only evaluates a manually selected XI;
-squad search and optimization remain Milestone 6B.
+plan states before entering the domain.
+
+`backend/app/squad_evaluation/` builds deterministic bounded candidate search on the
+prepared Milestone 6A boundary. It returns profile-specific lineups plus decomposed peak,
+depth, flexibility, rotation, replacement, role-depth, and training-cohort metrics. Planning
+roles are request-local and require no schema change. `squad_evaluation_services.py` adapts
+supplied states or immutable plan checkpoints and reuses training eligibility for cohort
+classification; it never duplicates training or team-rating formulas.
 
 ```text
 Latest completed sync
@@ -153,6 +159,6 @@ Plaintext OAuth-token storage exists only to support single-user local developme
 - Fractional starting skills default to visible +0.00; automatic inference remains future work.
 - The simple plan UI supports one appearance per player while the API supports mixed segments.
 - Capacity is an aggregate two-match validator, not an automatic lineup or match simulator.
-- Exact wages or attendance, stadium optimization, transfers, team/lineup ratings, tactics, and
+- Exact wages or attendance, stadium optimization, transfers, match-result prediction, and
   finance recommendations remain future work. Wage and attendance results are labeled
   approximations, not verified reproductions of Hattrick's private formulas.

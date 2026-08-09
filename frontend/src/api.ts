@@ -7,6 +7,9 @@ import type {
   PlayerContributionAnalysis,
   LineupEntry,
   PlanTeamRating,
+  PlanSquadEvaluation,
+  SquadPlanningRole,
+  EvaluationProfile,
   TeamRatingContext,
   Position,
   PositionSide,
@@ -136,6 +139,19 @@ export const api = {
       block_id?: number
     },
   ) => request<PlanTeamRating>(`/api/training-plans/${planId}/team-ratings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(value),
+  }),
+  evaluateSquad: (
+    planId: number,
+    value: {
+      members: Array<{ player_id: number; planning_role: SquadPlanningRole }>
+      profiles: EvaluationProfile[]
+      context: TeamRatingContext
+      checkpoint: 'current' | 'after_block' | 'final' | 'all'
+    },
+  ) => request<PlanSquadEvaluation>(`/api/training-plans/${planId}/squad-evaluation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(value),

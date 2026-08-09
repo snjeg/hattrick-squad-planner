@@ -43,10 +43,14 @@ from app.schemas import (
     FixtureAttendanceUpdate,
     HealthResponse,
     PlanFinanceResponse,
+    PlanSquadEvaluationRequest,
+    PlanSquadEvaluationResponse,
     PlanTeamRatingRequest,
     PlanTeamRatingResponse,
     PlayerContributionAnalysisResponse,
     SimulationResponse,
+    SquadEvaluationCalculateRequest,
+    SquadEvaluationResponse,
     SquadResponse,
     SyncResponse,
     TeamRatingCalculateRequest,
@@ -62,13 +66,15 @@ from app.schemas import (
 )
 from app.services import get_squad, sync_squad
 from app.simulator.capacity import CapacityValidationError
+from app.squad_evaluation.types import SquadEvaluationValidationError
+from app.squad_evaluation_services import evaluate_plan_squad, evaluate_supplied_squad
 from app.team_rating.types import TeamRatingValidationError
 from app.team_rating_services import evaluate_plan_team_rating, evaluate_supplied_team_rating
 
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-app = FastAPI(title="Hattrick Squad Planner API", version="0.5.0")
+app = FastAPI(title="Hattrick Squad Planner API", version="0.6.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
@@ -88,6 +94,7 @@ def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
 @app.exception_handler(CapacityValidationError)
 @app.exception_handler(ContributionValidationError)
 @app.exception_handler(TeamRatingValidationError)
+@app.exception_handler(SquadEvaluationValidationError)
 def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(error)})
 
@@ -250,6 +257,25 @@ def calculate_supplied_team_rating(
     payload: TeamRatingCalculateRequest,
 ) -> TeamRatingCalculationResponse:
     return evaluate_supplied_team_rating(payload)
+
+
+@app.post("/api/squad-evaluations/calculate", response_model=SquadEvaluationResponse)
+def calculate_supplied_squad_evaluation(
+    payload: SquadEvaluationCalculateRequest,
+) -> SquadEvaluationResponse:
+    return evaluate_supplied_squad(payload)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/squad-evaluation",
+    response_model=PlanSquadEvaluationResponse,
+)
+def calculate_plan_squad_evaluation(
+    session: SessionDependency,
+    plan_id: int,
+    payload: PlanSquadEvaluationRequest,
+) -> PlanSquadEvaluationResponse:
+    return evaluate_plan_squad(session, plan_id, payload)
 
 
 @app.patch("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)
