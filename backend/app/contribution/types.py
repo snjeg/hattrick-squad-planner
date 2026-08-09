@@ -138,6 +138,7 @@ class AppliedModifiers:
 @dataclass(frozen=True, slots=True)
 class PlayerContributionResult:
     starting: SectorVector
+    positional_before_experience: SectorVector
     effective_skills: Mapping[MatchSkill, float]
     position: PositionSlot
     order: IndividualOrder

@@ -1,4 +1,4 @@
-# Architecture through Milestone 5
+# Architecture through Milestone 6A
 
 ## Data flow
 
@@ -27,6 +27,12 @@ Chronologically latest snapshot query ----> React squad table
 ```
 
 Raw CHPP XML does not cross the adapter/normalizer boundary. The training engine consumes its own explicit normalized values and has no dependency on the CHPP adapter, database, FastAPI, or React.
+
+The selected-lineup engine under `backend/app/team_rating/` is likewise a pure domain. It
+consumes Milestone 5 player contributions, applies verified team-layer factors, and returns
+seven match-start sector ratings. `team_rating_services.py` materializes current/projected
+plan states before entering the domain. The frontend only evaluates a manually selected XI;
+squad search and optimization remain Milestone 6B.
 
 ```text
 Latest completed sync

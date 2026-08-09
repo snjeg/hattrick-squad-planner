@@ -118,6 +118,46 @@ export interface PlayerContributionAnalysis {
   uncertainty_notes: string[]
 }
 
+export type MatchAttitude = 'play_it_cool' | 'normal' | 'match_of_the_season'
+export type MatchLocation = 'away' | 'home' | 'away_derby' | 'tournament' | 'neutral'
+export type TeamTactic = 'normal' | 'pressing' | 'counter_attacks' | 'attack_in_middle'
+  | 'attack_in_wings' | 'play_creatively' | 'long_shots'
+
+export interface LineupEntry {
+  player_id: number
+  position: Position
+  side: PositionSide
+  order: IndividualOrder
+}
+
+export interface TeamRatingContext {
+  team_spirit: number
+  confidence: number
+  coach_style: number
+  attitude: MatchAttitude
+  location: MatchLocation
+  tactic: TeamTactic
+  weather: MatchWeather
+}
+
+export interface PlanTeamRating {
+  plan_id: number
+  checkpoint: 'current' | 'after_block' | 'final'
+  block_id: number | null
+  block_order: number | null
+  formation: string
+  sectors: Record<ContributionSector, {
+    raw_contribution: number
+    team_factor: number
+    adjusted_contribution: number
+    displayed: { value: number; level: number; level_name: string; sublevel: string }
+  }>
+  overcrowding_factors: Record<number, number>
+  model_version: string
+  model_quality: string
+  uncertainty_notes: string[]
+}
+
 export interface TrainingPlanSummary {
   id: number
   name: string

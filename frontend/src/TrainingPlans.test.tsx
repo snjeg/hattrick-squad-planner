@@ -18,6 +18,7 @@ vi.mock('./api', () => ({
     saveAssignments: vi.fn(),
     simulatePlan: vi.fn(),
     analyzeContributions: vi.fn(),
+    evaluateTeamRating: vi.fn(),
     planFinance: vi.fn(),
     saveFinanceAssumptions: vi.fn(),
     saveFixtureAttendance: vi.fn(),
@@ -240,5 +241,15 @@ describe('manual training plans', () => {
       order: 'normal',
       weather: 'overcast',
     })
+  })
+
+  it('shows an eleven-slot manual lineup evaluator without choosing an XI', async () => {
+    render(<TrainingPlans />)
+    fireEvent.click(await screen.findByRole('button', { name: /Saved manual plan/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Lineup evaluation' })).toBeInTheDocument()
+    expect(screen.getAllByLabelText(/Lineup player/)).toHaveLength(11)
+    expect(screen.getByRole('button', { name: 'Evaluate selected XI' })).toBeDisabled()
+    expect(screen.getByText(/does not choose, rank, or recommend an XI/i)).toBeInTheDocument()
   })
 })

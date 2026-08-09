@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -8,6 +9,7 @@ from app.contribution.types import (
     PositionRole,
     PositionSide,
 )
+from app.team_rating.types import MatchAttitude, MatchLocation, TeamTactic
 from app.training.types import CoachLevel, Position, Skill, TrainingType
 
 
@@ -276,6 +278,85 @@ class PlayerContributionAnalysisResponse(BaseModel):
     final_change: ContributionVectorResponse
     modifiers: ContributionModifiersResponse
     uncertainty_notes: list[str]
+
+
+class TeamLineupEntryRequest(BaseModel):
+    player_id: int
+    position: PositionRole
+    side: PositionSide
+    order: IndividualOrder
+
+
+class SuppliedPlayerMatchState(BaseModel):
+    goalkeeper: float | None
+    defending: float | None
+    playmaking: float | None
+    winger: float | None
+    passing: float | None
+    scoring: float | None
+    set_pieces: float | None
+    stamina: float | None
+    form: float | None
+    experience: float | None
+    loyalty: float | None
+    mother_club: bool | None
+    specialty: int | None
+
+
+class SuppliedTeamLineupEntry(TeamLineupEntryRequest):
+    state: SuppliedPlayerMatchState
+
+
+class TeamRatingContextRequest(BaseModel):
+    team_spirit: float = Field(ge=0, le=10.75)
+    confidence: int = Field(ge=0, le=9)
+    coach_style: int = Field(ge=-10, le=10)
+    attitude: MatchAttitude
+    location: MatchLocation
+    tactic: TeamTactic
+    weather: MatchWeather
+
+
+class PlanTeamRatingRequest(BaseModel):
+    lineup: list[TeamLineupEntryRequest]
+    context: TeamRatingContextRequest
+    checkpoint: Literal["current", "after_block", "final"]
+    block_id: int | None = None
+
+
+class TeamRatingCalculateRequest(BaseModel):
+    lineup: list[SuppliedTeamLineupEntry]
+    context: TeamRatingContextRequest
+
+
+class DisplayedSectorRatingResponse(BaseModel):
+    value: float
+    level: int
+    level_name: str
+    sublevel: str
+
+
+class TeamSectorRatingResponse(BaseModel):
+    raw_contribution: float
+    team_factor: float
+    adjusted_contribution: float
+    displayed: DisplayedSectorRatingResponse
+
+
+class TeamRatingCalculationResponse(BaseModel):
+    formation: str
+    sectors: dict[str, TeamSectorRatingResponse]
+    overcrowding_factors: dict[int, float]
+    model_version: str
+    model_quality: str
+    uncertainty_notes: list[str]
+
+
+class PlanTeamRatingResponse(TeamRatingCalculationResponse):
+    plan_id: int
+    checkpoint: Literal["current", "after_block", "final"]
+    block_id: int | None
+    block_order: int | None
 
 
 class FinanceAssumptionsUpdate(BaseModel):
