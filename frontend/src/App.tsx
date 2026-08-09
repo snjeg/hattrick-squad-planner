@@ -90,7 +90,7 @@ function App() {
           <button className={activeView === 'squad' ? 'active' : ''} onClick={() => setActiveView('squad')}>Squad</button>
           <button className={activeView === 'plans' ? 'active' : ''} onClick={() => setActiveView('plans')}>Training plans</button>
         </nav>
-        <span className="milestone">Milestone 4 · Finance scenarios</span>
+        <span className="milestone">Milestone 4.1 · Attendance scenarios</span>
       </header>
 
       <main>
@@ -133,7 +133,7 @@ function App() {
         <section className="squad-card" aria-labelledby="squad-heading">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Current observation</p>
+              <div className="heading-kicker"><span className="state-badge badge-current">Current</span><span>CHPP observation</span></div>
               <h2 id="squad-heading">Senior squad</h2>
             </div>
             <span className="player-count">{squad.players.length} players</span>

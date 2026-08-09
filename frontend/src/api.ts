@@ -109,6 +109,16 @@ export const api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(assumptions),
+      }),
+  saveFixtureAttendance: (
+    planId: number,
+    matchId: number,
+    value: { weather_override: string | null; manual_revenue_override: number | null },
+  ) =>
+    request<PlanFinance>(`/api/training-plans/${planId}/finance/fixtures/${matchId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
     }),
   simulateFinances: (planId: number) =>
     request<FinanceProjection>(`/api/training-plans/${planId}/finance/simulate`, {

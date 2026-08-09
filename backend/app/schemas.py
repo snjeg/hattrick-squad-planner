@@ -231,6 +231,8 @@ class FinanceAssumptionsUpdate(BaseModel):
     expected_home_match_revenue: int | None = Field(default=None, ge=0)
     weeks_until_season_boundary: int | None = Field(default=None, ge=0)
     sponsor_income_after_boundary: int | None = Field(default=None, ge=0)
+    attendance_model_enabled: bool = True
+    fan_mood_override: int | None = Field(default=None, ge=1, le=11)
 
 
 class FinanceAssumptionsResponse(FinanceAssumptionsUpdate):
@@ -250,6 +252,8 @@ class FactualFinanceResponse(BaseModel):
     arena_costs: int
     financial_income: int
     financial_costs: int
+    supporter_count: int | None
+    fan_mood: int | None
 
 
 class ArenaSnapshotResponse(BaseModel):
@@ -261,12 +265,55 @@ class ArenaSnapshotResponse(BaseModel):
     total: int
 
 
+class FixtureAttendanceUpdate(BaseModel):
+    weather_override: str | None = None
+    manual_revenue_override: int | None = Field(default=None, ge=0)
+
+
+class AttendanceSectionResponse(BaseModel):
+    category: str
+    baseline_demand: float
+    adjusted_demand: float
+    capacity: int
+    sold: int
+    unmet_demand: float
+    utilization: float
+    ticket_price: float
+    weekly_maintenance_per_seat: float
+    gross_revenue: float
+    unmet_revenue_potential: float
+
+
+class AttendanceEstimateResponse(BaseModel):
+    model_version: str
+    quality: str
+    weather: str
+    sections: list[AttendanceSectionResponse]
+    baseline_total_demand: float
+    adjusted_total_demand: float
+    total_capacity: int
+    total_attendance: int
+    utilization: float
+    gross_revenue: float
+    average_revenue_per_spectator: float
+    club_revenue: int | None
+    opponent_revenue: int | None
+    revenue_share: float | None
+    notes: list[str]
+
+
 class FixtureResponse(BaseModel):
     match_id: int
     match_date: datetime
     match_type: int
     is_home: bool
     opponent: str
+    weather_override: str | None = None
+    manual_revenue_override: int | None = None
+    attendance_estimate: AttendanceEstimateResponse | None = None
+    weather_scenarios: dict[str, AttendanceEstimateResponse] = Field(default_factory=dict)
+    attendance_model_status: str
+    attendance_uncertainty_notes: list[str] = Field(default_factory=list)
 
 
 class PlanFinanceResponse(BaseModel):
@@ -303,6 +350,8 @@ class WeeklyFinanceRowResponse(BaseModel):
     total_cash_flow: int
     ending_cash: int
     home_fixture_ids: list[int]
+    contributing_fixture_ids: list[int]
+    match_revenue_sources: dict[int, str]
 
 
 class FinanceBlockCheckpointResponse(BaseModel):

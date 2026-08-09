@@ -264,6 +264,27 @@ function TrainingPlans() {
     }
   }
 
+  async function saveFixtureAttendance(
+    matchId: number,
+    weather: string | null,
+    manualRevenue: number | null,
+  ) {
+    if (!plan) return
+    setBusy(true)
+    setError(null)
+    try {
+      setFinance(await api.saveFixtureAttendance(plan.id, matchId, {
+        weather_override: weather,
+        manual_revenue_override: manualRevenue,
+      }))
+      setFinanceProjection(null)
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function runFinanceProjection() {
     if (!plan) return
     setBusy(true)
@@ -327,7 +348,7 @@ function TrainingPlans() {
             <>
               <div className="plan-title-row">
                 <div>
-                  <p className="eyebrow">Estimated from sync #{plan.starting_sync_run_id}</p>
+                  <div className="heading-kicker heading-kicker-dark"><span className="state-badge badge-current">Current</span><span>Starting sync #{plan.starting_sync_run_id}</span></div>
                   <input
                     className="plan-name-input"
                     aria-label="Plan name"
@@ -348,6 +369,7 @@ function TrainingPlans() {
                 >Delete plan</button>
               </div>
               <p className="estimate-banner">
+                <span className="state-badge badge-assumption">Assumption</span>
                 Current visible skills start at +0.00 unless manually overridden. All results are estimates.
               </p>
 
@@ -427,7 +449,7 @@ function TrainingPlans() {
 
               {simulation && (
                 <section className="results-card" aria-labelledby="results-heading">
-                  <div className="section-heading"><div><p className="eyebrow">Hypothetical projection</p><h2 id="results-heading">Estimated results</h2></div><span className="player-count">{simulation.total_weeks} weeks</span></div>
+                  <div className="section-heading"><div><div className="heading-kicker"><span className="state-badge badge-projected">Projected</span><span>Hypothetical outcome</span></div><h2 id="results-heading">Estimated results</h2></div><span className="player-count">{simulation.total_weeks} weeks</span></div>
                   <div className="table-scroll"><table className="results-table"><thead><tr><th>Player</th><th>Skill</th><th>Current estimate</th>{plan.blocks.map((block) => <th key={block.id}>After {block.order}</th>)}<th>Projected final</th><th>Gain</th></tr></thead><tbody>{simulation.players.flatMap((player) => relevantSkills.map((skill) => <tr key={`${player.player_id}-${skill}`}><th>{player.player}<small>{formatAge(player.starting.age_years, player.starting.age_days)} → {formatAge(player.final.age_years, player.final.age_days)}</small></th><td>{skillLabels[skill]}</td><td>{formatProjectedSkill(player.starting.skills[skill])}</td>{player.after_blocks.map((checkpoint) => <td key={checkpoint.block_id}>{formatProjectedSkill(checkpoint.state.skills[skill])}{checkpoint.skill_ups[skill] ? <small className="skill-up">+{checkpoint.skill_ups[skill]} pop</small> : null}</td>)}<td className="projected-value">{formatProjectedSkill(player.final.skills[skill])}</td><td>+{(player.total_gains[skill] ?? 0).toFixed(2)}</td></tr>))}</tbody></table></div>
                   <p className="formula-note">Estimated using {simulation.formula_version}. Projected states are never written to factual player snapshots.</p>
                 </section>
@@ -437,10 +459,17 @@ function TrainingPlans() {
                 <section className="finance-card" aria-labelledby="finance-heading">
                   <div className="section-heading">
                     <div>
-                      <p className="eyebrow">Plan-bound scenario</p>
+                      <div className="heading-kicker"><span className="state-badge badge-projected">Projected</span><span>Plan-bound scenario</span></div>
                       <h2 id="finance-heading">Finance projection</h2>
                     </div>
                     <span className="quality-pill">Estimated wages · low confidence</span>
+                  </div>
+
+                  <div className="state-legend" aria-label="Data status legend">
+                    <span className="state-badge badge-current">Current</span>
+                    <span className="state-badge badge-assumption">Assumption</span>
+                    <span className="state-badge badge-community">Community estimate</span>
+                    <span className="state-badge badge-projected">Projected</span>
                   </div>
 
                   <div className="finance-facts">
@@ -454,6 +483,7 @@ function TrainingPlans() {
                     Current facts are frozen to sync #{plan.starting_sync_run_id}. Assumptions and projections do not alter imported CHPP data.
                   </p>
 
+                  <div className="subsection-label"><span className="state-badge badge-assumption">Assumption</span><strong>Scenario controls</strong></div>
                   <div className="finance-settings">
                     <label>Assumption: starting cash override<input aria-label="Starting cash override" type="number" value={finance.assumptions.starting_cash_override ?? ''} placeholder={String(finance.factual?.cash_balance ?? '')} onChange={(event) => updateAssumption('starting_cash_override', event.target.value)} /></label>
                     <label>Assumption: sponsor override<input aria-label="Sponsor income override" type="number" min="0" value={finance.assumptions.sponsor_income_override ?? ''} placeholder={String(finance.factual?.sponsor_income ?? '')} onChange={(event) => updateAssumption('sponsor_income_override', event.target.value)} /></label>
@@ -463,6 +493,8 @@ function TrainingPlans() {
                     <label>Assumption: home-match revenue<input aria-label="Expected home match revenue" type="number" min="0" value={finance.assumptions.expected_home_match_revenue ?? ''} onChange={(event) => updateAssumption('expected_home_match_revenue', event.target.value)} /></label>
                     <label>Assumption: weeks to season boundary<input aria-label="Weeks until season boundary" type="number" min="0" value={finance.assumptions.weeks_until_season_boundary ?? ''} onChange={(event) => updateAssumption('weeks_until_season_boundary', event.target.value)} /></label>
                     <label>Assumption: sponsor after boundary<input aria-label="Sponsor income after boundary" type="number" min="0" value={finance.assumptions.sponsor_income_after_boundary ?? ''} onChange={(event) => updateAssumption('sponsor_income_after_boundary', event.target.value)} /></label>
+                    <label>Fan mood override (1–11)<input aria-label="Fan mood override" type="number" min="1" max="11" value={finance.assumptions.fan_mood_override ?? ''} placeholder={String(finance.factual?.fan_mood ?? '')} onChange={(event) => updateAssumption('fan_mood_override', event.target.value)} /></label>
+                    <label><input aria-label="Enable attendance model" type="checkbox" checked={finance.assumptions.attendance_model_enabled} onChange={(event) => setFinance({ ...finance, assumptions: { ...finance.assumptions, attendance_model_enabled: event.target.checked } })} /> Enable approximate attendance model</label>
                   </div>
                   <div className="finance-actions">
                     <button className="secondary-button" disabled={busy} onClick={() => void saveFinanceAssumptions()}>Save assumptions</button>
@@ -470,11 +502,22 @@ function TrainingPlans() {
                   </div>
 
                   <div className="fixture-note">
-                    <strong>Current fixtures:</strong> {finance.fixtures.length || 'none'} imported; only home fixtures receive the user-entered revenue assumption.
+                    <strong>Imported fixtures:</strong> {finance.fixtures.length || 'none'}. Revenue priority is manual fixture override, weather-specific attendance estimate, legacy home assumption, then zero.
                   </div>
+                  {finance.fixtures.map((fixture) => (
+                    <div className="fixture-card" key={fixture.match_id}>
+                      <div className="fixture-card-heading"><div><span className="fixture-side">{fixture.is_home ? 'Home' : 'Away'}</span><strong>vs {fixture.opponent}</strong></div><span className={`state-badge ${fixture.attendance_estimate || Object.keys(fixture.weather_scenarios).length ? 'badge-community' : 'badge-assumption'}`}>{fixture.attendance_estimate || Object.keys(fixture.weather_scenarios).length ? 'Community estimate' : 'Manual fallback'}</span></div>
+                      <div className="fixture-controls">
+                        <label><span className="state-badge badge-assumption">Assumption</span> Weather <select aria-label={`Weather for ${fixture.opponent}`} value={fixture.weather_override ?? ''} onChange={(event) => void saveFixtureAttendance(fixture.match_id, event.target.value || null, fixture.manual_revenue_override)}><option value="">Unknown (show scenarios)</option><option value="sunny">Sunny</option><option value="partly_cloudy">Partly cloudy</option><option value="overcast">Overcast</option><option value="rain">Rain</option></select></label>
+                        <label><span className="state-badge badge-assumption">Assumption</span> Club revenue override <input aria-label={`Revenue for ${fixture.opponent}`} type="number" min="0" value={fixture.manual_revenue_override ?? ''} onBlur={(event) => void saveFixtureAttendance(fixture.match_id, fixture.weather_override, optionalNumber(event.target.value))} onChange={(event) => setFinance({ ...finance, fixtures: finance.fixtures.map((item) => item.match_id === fixture.match_id ? { ...item, manual_revenue_override: optionalNumber(event.target.value) } : item) })} /></label>
+                      </div>
+                      {fixture.attendance_estimate ? <p className="fixture-result">Estimated {fixture.attendance_estimate.total_attendance.toLocaleString()} spectators ({(fixture.attendance_estimate.utilization * 100).toFixed(1)}% stadium utilization); club revenue {money(fixture.attendance_estimate.club_revenue)} ({fixture.attendance_estimate.quality}).</p> : Object.keys(fixture.weather_scenarios).length ? <p className="fixture-result">Unknown weather scenario range: {Math.min(...Object.values(fixture.weather_scenarios).map((item) => item.total_attendance)).toLocaleString()}–{Math.max(...Object.values(fixture.weather_scenarios).map((item) => item.total_attendance)).toLocaleString()} spectators.</p> : <p className="fixture-limitation">{fixture.attendance_uncertainty_notes[0] ?? 'Attendance estimate unavailable; use a manual revenue override if needed.'}</p>}
+                    </div>
+                  ))}
 
                   {financeProjection && (
                     <div className="finance-results">
+                      <div className="subsection-label"><span className="state-badge badge-projected">Projected</span><strong>Weekly cash flow</strong></div>
                       <div className="finance-facts projected">
                         <div><small>Projected final cash</small><strong>{money(financeProjection.final_cash)}</strong></div>
                         <div><small>Projected final weekly wages</small><strong>{money(financeProjection.final_weekly_wages)}</strong></div>

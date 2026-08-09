@@ -20,6 +20,8 @@ class FixtureEvent:
     is_home: bool
     match_type: int
     opponent: str
+    club_revenue: int | None = None
+    revenue_source: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +36,8 @@ class WeeklyFinanceRow:
     total_cash_flow: int
     ending_cash: int
     home_fixture_ids: tuple[int, ...]
+    contributing_fixture_ids: tuple[int, ...]
+    match_revenue_sources: dict[int, str]
 
 
 @dataclass(frozen=True, slots=True)

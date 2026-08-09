@@ -1,6 +1,6 @@
 # Hattrick Squad Development Planner
 
-Milestone 4 adds plan-bound economy, arena, fixture, wage, and cash-flow scenarios to the
+Milestone 4.1 adds plan-bound economy, arena, fixture, attendance, wage, and cash-flow scenarios to the
 existing CHPP squad import and manual training simulator. Managers choose every block,
 assignment, and financial assumption. The application projects “If I follow this plan,
 what happens?” without recommending a strategy.
@@ -19,6 +19,7 @@ backend/
   app/simulator/       Week-by-week projection and capacity domain
   app/wage/            Explicitly approximate wage domain
   app/finance/         Framework-independent cash-flow projection domain
+  app/attendance/      Table-driven seat demand and gate-revenue domain
   fixtures/chpp/       Fictional CHPP XML used in mock mode
   tests/               Backend, migration, and training unit tests
 frontend/
@@ -28,6 +29,7 @@ docs/training-engine.md Formula traceability and training rules
 docs/training-simulator.md Manual-plan semantics and capacity assumptions
 docs/wage-engine.md     Wage sources, approximation, and uncertainty
 docs/finance-projection.md Finance facts, assumptions, and projection semantics
+docs/attendance-model.md  Attendance tables, weather uncertainty, and revenue sharing
 docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
@@ -134,9 +136,10 @@ pnpm build
 - `POST /api/training-plans/{id}/simulate` - run the hypothetical week-by-week projection; add `?detailed=true` for weekly output.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
+- `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.
 - `POST /api/training-plans/{id}/finance/simulate` - project weekly wages and operating cash flow.
 
 The simulator is manual: there is deliberately no optimizer, recommended training cycle,
-transfer advice or valuation, lineup engine, tactics model, attendance model, or finance
+transfer advice or valuation, lineup engine, tactics model, stadium optimizer, or finance
 recommendation. Read `PROJECT_SPEC.md`, `AGENTS.md`, and `DECISIONS.md` before extending
 the product.

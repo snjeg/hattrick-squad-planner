@@ -48,6 +48,41 @@ def test_home_match_income_only_applies_to_home_fixture_week() -> None:
     assert result.weekly_rows[0].home_fixture_ids == (1,)
 
 
+def test_resolved_fixture_revenue_overrides_legacy_and_supports_away_income() -> None:
+    fixtures = (
+        FixtureEvent(1, 1, True, 3, "Cup visitor", 44_000, "attendance_model"),
+        FixtureEvent(2, 1, False, 3, "Cup host", 22_000, "manual_fixture_override"),
+    )
+    result = project_finances(
+        assumptions=assumptions(),
+        starting_weekly_wages=10_000,
+        weekly_wages=(10_000,),
+        fixtures=fixtures,
+        block_end_weeks=(),
+    )
+
+    row = result.weekly_rows[0]
+    assert row.match_income == 66_000
+    assert row.contributing_fixture_ids == (1, 2)
+    assert row.match_revenue_sources == {
+        1: "attendance_model",
+        2: "manual_fixture_override",
+    }
+
+
+def test_explicit_zero_does_not_fall_back_to_legacy_revenue() -> None:
+    result = project_finances(
+        assumptions=assumptions(),
+        starting_weekly_wages=10_000,
+        weekly_wages=(10_000,),
+        fixtures=(FixtureEvent(1, 1, True, 1, "Visitor", 0, "zero_unresolved"),),
+        block_end_weeks=(),
+    )
+
+    assert result.weekly_rows[0].match_income == 0
+    assert result.weekly_rows[0].match_revenue_sources[1] == "zero_unresolved"
+
+
 def test_operating_and_capital_cash_flow_are_separate() -> None:
     result = project_finances(
         assumptions=assumptions(),
