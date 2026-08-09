@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import TrainingPlans from './TrainingPlans'
-import type { Skill, TrainingPlan } from './types'
+import type { PlanFinance, Skill, TrainingPlan } from './types'
 
 vi.mock('./api', () => ({
   api: {
@@ -17,6 +17,9 @@ vi.mock('./api', () => ({
     reorderBlocks: vi.fn(),
     saveAssignments: vi.fn(),
     simulatePlan: vi.fn(),
+    planFinance: vi.fn(),
+    saveFinanceAssumptions: vi.fn(),
+    simulateFinances: vi.fn(),
   },
 }))
 
@@ -30,6 +33,7 @@ const savedPlan: TrainingPlan = {
   id: 1,
   name: 'Saved manual plan',
   starting_sync_run_id: 4,
+  starting_finance_snapshot_id: 3,
   formula_version: 'ho-test',
   estimated_starting_subskills: true,
   created_at: '2026-08-09T10:00:00Z',
@@ -70,6 +74,50 @@ const savedPlan: TrainingPlan = {
   ],
 }
 
+const savedFinance: PlanFinance = {
+  factual: {
+    snapshot_id: 3,
+    sync_run_id: 4,
+    observed_at: '2026-08-09T10:00:00Z',
+    cash_balance: 850000,
+    expected_cash: 860000,
+    sponsor_income: 65000,
+    player_wages: 59200,
+    staff_costs: 18000,
+    youth_costs: 10000,
+    arena_costs: 14500,
+    financial_income: 1200,
+    financial_costs: 0,
+  },
+  arena: {
+    arena_name: 'Architecture Ground',
+    terraces: 14000,
+    basic: 6000,
+    roof: 3000,
+    vip: 500,
+    total: 23500,
+  },
+  fixtures: [{
+    match_id: 700001,
+    match_date: '2026-08-11T20:00:00Z',
+    match_type: 1,
+    is_home: true,
+    opponent: 'Visitors FC',
+  }],
+  assumptions: {
+    starting_cash_override: null,
+    sponsor_income_override: null,
+    staff_cost_override: null,
+    youth_cost_override: null,
+    arena_cost_override: null,
+    expected_home_match_revenue: null,
+    weeks_until_season_boundary: null,
+    sponsor_income_after_boundary: null,
+  },
+  wage_model_version: 'approx-test',
+  wage_model_quality: 'approximate-low-confidence',
+}
+
 describe('manual training plans', () => {
   afterEach(cleanup)
 
@@ -81,6 +129,7 @@ describe('manual training plans', () => {
           id: 1,
           name: 'Saved manual plan',
           starting_sync_run_id: 4,
+          starting_finance_snapshot_id: 3,
           formula_version: 'ho-test',
           block_count: 1,
           total_weeks: 10,
@@ -90,6 +139,8 @@ describe('manual training plans', () => {
       ],
     })
     vi.mocked(api.plan).mockResolvedValue(savedPlan)
+    vi.mocked(api.planFinance).mockResolvedValue(savedFinance)
+    vi.mocked(api.saveFinanceAssumptions).mockResolvedValue(savedFinance)
   })
 
   it('opens a saved plan and shows backend-calculated training eligibility', async () => {
@@ -107,5 +158,16 @@ describe('manual training plans', () => {
 
     expect(screen.getByText('Build a plan. See what happens.')).toBeInTheDocument()
     expect(screen.getByText(/not recommendations/i)).toBeInTheDocument()
+  })
+
+  it('shows plan-bound facts and explicitly labeled finance assumptions', async () => {
+    render(<TrainingPlans />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Saved manual plan/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Finance projection' })).toBeInTheDocument()
+    expect(screen.getByText('Architecture Ground · 23,500')).toBeInTheDocument()
+    expect(screen.getByLabelText('Expected home match revenue')).toBeInTheDocument()
+    expect(screen.getByText(/low confidence/i)).toBeInTheDocument()
   })
 })

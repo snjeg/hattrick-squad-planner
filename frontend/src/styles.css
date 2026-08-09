@@ -121,6 +121,21 @@ input, select { min-height: 40px; padding: 8px 10px; border: 1px solid #cfd4c8; 
 .results-table .skill-up { color: #44714a; font-weight: 700; }
 .projected-value { color: #214f34; background: #f0f6eb; font-weight: 700; }
 .formula-note { margin: 0; padding: 16px 24px; color: #718078; font-size: 12px; }
+.finance-card { margin: 32px -24px -24px; border-top: 1px solid #d7dacd; background: #fffef9; }
+.quality-pill { padding: 7px 10px; border-radius: 99px; color: #74591b; background: #f7eccb; font-size: 11px; font-weight: 700; }
+.finance-facts { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; padding: 22px 24px 8px; }
+.finance-facts > div { display: grid; gap: 6px; padding: 14px; border: 1px solid #e0e3d9; border-radius: 10px; background: #fff; }
+.finance-facts small { color: #778279; }
+.finance-facts strong { color: #193629; font: 700 16px 'Manrope', sans-serif; }
+.finance-facts.projected { padding-top: 22px; background: #f2f6ed; }
+.finance-settings { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 14px; padding: 16px 24px; }
+.finance-settings label { display: grid; gap: 6px; color: #617365; font-size: 12px; font-weight: 700; }
+.finance-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 0 24px 20px; }
+.finance-actions .primary-button { width: auto; min-width: 170px; padding: 0 16px; }
+.fixture-note { margin: 0 24px 22px; padding: 12px 14px; border-radius: 8px; color: #536450; background: #eef1e8; font-size: 12px; }
+.finance-results { border-top: 1px solid #e0e3d9; }
+.finance-table th:first-child { min-width: 80px; padding-left: 24px; }
+.uncertainty-list { margin: 14px 24px 0; padding: 14px 14px 14px 32px; color: #6b6048; background: #fbf4df; font-size: 12px; line-height: 1.6; }
 
 @media (max-width: 860px) {
   .milestone { display: none; }
@@ -133,6 +148,7 @@ input, select { min-height: 40px; padding: 8px 10px; border: 1px solid #cfd4c8; 
   .plan-list h2 { display: none; }
   .plan-list-item { min-width: 190px; }
   .settings-grid { grid-template-columns: repeat(2, 1fr); }
+  .finance-facts, .finance-settings { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

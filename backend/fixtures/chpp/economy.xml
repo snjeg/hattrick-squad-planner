@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HattrickData>
+  <FileName>economy</FileName>
+  <Version>1.3</Version>
+  <FetchedDate>2026-08-08 12:00:00</FetchedDate>
+  <Team>
+    <TeamID>123456</TeamID>
+    <TeamName>FC Architecture</TeamName>
+    <Cash>850000</Cash>
+    <ExpectedCash>872000</ExpectedCash>
+    <IncomeSpectators>0</IncomeSpectators>
+    <IncomeSponsors>65000</IncomeSponsors>
+    <IncomeFinancial>1200</IncomeFinancial>
+    <IncomeTemporary>0</IncomeTemporary>
+    <IncomeSum>66200</IncomeSum>
+    <CostsArena>14500</CostsArena>
+    <CostsPlayers>59200</CostsPlayers>
+    <CostsFinancial>0</CostsFinancial>
+    <CostsTemporary>0</CostsTemporary>
+    <CostsStaff>18000</CostsStaff>
+    <CostsYouth>10000</CostsYouth>
+    <CostsSum>101700</CostsSum>
+  </Team>
+</HattrickData>

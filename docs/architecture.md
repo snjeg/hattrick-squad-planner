@@ -1,4 +1,4 @@
-# Architecture through Milestone 3
+# Architecture through Milestone 4
 
 ## Data flow
 
@@ -17,6 +17,7 @@ XML normalizer
       +----> Player identity (upsert stable factual fields)
       |
       +----> PlayerSnapshot (always append observations)
+      +----> FinanceSnapshot / ArenaSnapshot / FixtureSnapshot (append observations)
       |
       v
 SQLAlchemy database <---- Alembic-managed schema
@@ -44,7 +45,22 @@ TrainingPlan ----> exact TrainingPlanPlayer snapshot references
                     weekly simulator ----> Milestone 2 training engine
                               |
                               v
-                    projected API result ----> React plan/results workspace
+projected API result ----> React plan/results workspace
+```
+
+The same stable plan boundary now feeds finance projection:
+
+```text
+TrainingPlan ----> bound FinanceSnapshot + fixtures + explicit assumptions
+      |                         |
+      v                         v
+weekly training states ----> approximate birthday wage projection
+                                      |
+                                      v
+                           weekly operating cash flow
+                                      |
+                                      v
+                         labeled React finance scenario
 ```
 
 ## Persistence and schema evolution
@@ -55,6 +71,8 @@ TrainingPlan ----> exact TrainingPlanPlayer snapshot references
 - `oauth_credentials` contains the single local user's CHPP access token in live mode.
 - `oauth_request_states` temporarily stores OAuth request-token state during authorization.
 - `training_plans` and related block/assignment tables persist hypothetical manual configuration.
+- `finance_snapshots`, `arena_snapshots`, and `fixture_snapshots` preserve sync-bound CHPP facts.
+- `training_plan_finance_assumptions` stores user-owned scenario inputs separately from facts.
 - `training_plan_players` references exact factual snapshots; projected weekly states are not tables.
 
 Snapshot rows are append-only. The squad query chooses the newest observation by `observed_at`, then `sync_run_id`, then snapshot `id`, all descending. The latter two fields provide deterministic tie-breaking rather than treating the largest auto-increment ID as chronological truth.
@@ -80,6 +98,19 @@ Plans capture the latest completed sync at creation and retain one exact snapsho
 
 Each block is manual and ordered. Assignments store understandable position/minute segments and are resolved by the existing eligibility module. Capacity rules are independent of training speed. Simulation results are hypothetical in-memory data and are never written to `player_snapshots`.
 
+## Wage and finance domains
+
+`backend/app/wage/` projects factual player salary unchanged until a simulated birthday,
+then applies the explicitly low-confidence approximation documented in
+`docs/wage-engine.md`. The module depends on normalized age/skill states, not CHPP,
+FastAPI, or React.
+
+`backend/app/finance/` consumes normalized recurring values, projected weekly squad
+wages, fixture events, and explicit assumptions. It keeps operating and capital cash flow
+separate and does not infer attendance, transfer proceeds, or recommendations.
+`finance_services.py` translates between plan-bound database facts and these independent
+domains.
+
 ## CHPP boundaries and credential safety
 
 The integration uses only CHPP OAuth and XML endpoints. It does not accept Hattrick passwords, scrape HTML, schedule downloads, submit match orders, or automate transfers. Mock mode remains the default and follows the same parser and persistence path as live data.
@@ -94,4 +125,6 @@ Plaintext OAuth-token storage exists only to support single-user local developme
 - Fractional starting skills default to visible +0.00; automatic inference remains future work.
 - The simple plan UI supports one appearance per player while the API supports mixed segments.
 - Capacity is an aggregate two-match validator, not an automatic lineup or match simulator.
-- Optimization, transfers, lineup ratings, tactics, wages, and finance projections remain future work.
+- Exact wages, attendance, optimization, transfers, lineup ratings, tactics, and finance
+  recommendations remain future work. Milestone 4 wages are scenario approximations, not
+  a verified reproduction of Hattrick's private formula.

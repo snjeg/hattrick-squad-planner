@@ -72,6 +72,7 @@ export interface TrainingPlanSummary {
   id: number
   name: string
   starting_sync_run_id: number
+  starting_finance_snapshot_id: number | null
   formula_version: string
   block_count: number
   total_weeks: number
@@ -120,6 +121,7 @@ export interface TrainingPlan {
   id: number
   name: string
   starting_sync_run_id: number
+  starting_finance_snapshot_id: number | null
   formula_version: string
   estimated_starting_subskills: boolean
   created_at: string
@@ -159,4 +161,91 @@ export interface SimulationResponse {
   total_weeks: number
   players: PlayerProjection[]
   weekly_results: unknown[] | null
+}
+
+export interface FinanceAssumptions {
+  starting_cash_override: number | null
+  sponsor_income_override: number | null
+  staff_cost_override: number | null
+  youth_cost_override: number | null
+  arena_cost_override: number | null
+  expected_home_match_revenue: number | null
+  weeks_until_season_boundary: number | null
+  sponsor_income_after_boundary: number | null
+}
+
+export interface PlanFinance {
+  factual: null | {
+    snapshot_id: number
+    sync_run_id: number
+    observed_at: string
+    cash_balance: number
+    expected_cash: number | null
+    sponsor_income: number
+    player_wages: number
+    staff_costs: number
+    youth_costs: number
+    arena_costs: number
+    financial_income: number
+    financial_costs: number
+  }
+  arena: null | {
+    arena_name: string
+    terraces: number
+    basic: number
+    roof: number
+    vip: number
+    total: number
+  }
+  fixtures: Array<{
+    match_id: number
+    match_date: string
+    match_type: number
+    is_home: boolean
+    opponent: string
+  }>
+  assumptions: FinanceAssumptions
+  wage_model_version: string
+  wage_model_quality: string
+}
+
+export interface FinanceProjection {
+  plan_id: number
+  wage_model_version: string
+  wage_model_quality: string
+  starting_cash: number
+  starting_weekly_wages: number
+  weekly_rows: Array<{
+    week: number
+    squad_wages: number
+    sponsor_income: number
+    match_income: number
+    fixed_costs: number
+    operating_cash_flow: number
+    capital_cash_flow: number
+    total_cash_flow: number
+    ending_cash: number
+    home_fixture_ids: number[]
+  }>
+  block_checkpoints: Array<{
+    block_id: number
+    block_order: number
+    week: number
+    squad_wages: number
+    ending_cash: number
+  }>
+  player_wages: Array<{
+    player_id: number
+    starting_wage: number
+    starting_quality: string
+    after_blocks: Array<{ block_id: number; block_order: number; weekly_wage: number }>
+    final_wage: number
+  }>
+  final_cash: number
+  final_weekly_wages: number
+  operating_cash_flow_total: number
+  capital_cash_flow_total: number
+  total_cash_flow: number
+  assumptions: FinanceAssumptions
+  uncertainty_notes: string[]
 }

@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
+    FinanceSnapshot,
     Player,
     PlayerSnapshot,
     SyncRun,
@@ -12,6 +13,7 @@ from app.models import (
     TrainingAssignment,
     TrainingBlock,
     TrainingPlan,
+    TrainingPlanFinanceAssumptions,
     TrainingPlanPlayer,
     utc_now,
 )
@@ -73,6 +75,8 @@ def _load_plan(session: Session, plan_id: int) -> TrainingPlan:
         .options(
             selectinload(TrainingPlan.players).selectinload(TrainingPlanPlayer.player),
             selectinload(TrainingPlan.players).selectinload(TrainingPlanPlayer.snapshot),
+            selectinload(TrainingPlan.finance_snapshot),
+            selectinload(TrainingPlan.finance_assumptions),
             selectinload(TrainingPlan.blocks)
             .selectinload(TrainingBlock.assignments)
             .selectinload(TrainingAssignment.plan_player)
@@ -183,11 +187,18 @@ def create_training_plan(session: Session, payload: TrainingPlanCreate) -> Train
         raise PlanValidationError("Plan name must not be blank")
 
     try:
+        finance_snapshot = session.scalar(
+            select(FinanceSnapshot).where(FinanceSnapshot.sync_run_id == run.id)
+        )
         plan = TrainingPlan(
             name=name,
             starting_sync_run_id=run.id,
+            starting_finance_snapshot_id=(
+                finance_snapshot.id if finance_snapshot is not None else None
+            ),
             formula_version=TRAINING_ENGINE_REFERENCE,
         )
+        plan.finance_assumptions = TrainingPlanFinanceAssumptions()
         session.add(plan)
         session.flush()
         for player, snapshot in starting_rows:
@@ -219,6 +230,7 @@ def list_training_plans(session: Session) -> TrainingPlanListResponse:
                 id=plan.id,
                 name=plan.name,
                 starting_sync_run_id=plan.starting_sync_run_id,
+                starting_finance_snapshot_id=plan.starting_finance_snapshot_id,
                 formula_version=plan.formula_version,
                 block_count=len(plan.blocks),
                 total_weeks=sum(block.weeks for block in plan.blocks),
@@ -484,6 +496,7 @@ def serialize_training_plan(plan: TrainingPlan) -> TrainingPlanResponse:
         id=plan.id,
         name=plan.name,
         starting_sync_run_id=plan.starting_sync_run_id,
+        starting_finance_snapshot_id=plan.starting_finance_snapshot_id,
         formula_version=plan.formula_version,
         estimated_starting_subskills=estimated,
         created_at=plan.created_at,

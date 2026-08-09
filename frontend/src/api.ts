@@ -1,6 +1,9 @@
 import type {
   AuthStartResponse,
   CHPPStatus,
+  FinanceAssumptions,
+  FinanceProjection,
+  PlanFinance,
   Position,
   SimulationResponse,
   SquadResponse,
@@ -97,6 +100,18 @@ export const api = {
     }),
   simulatePlan: (planId: number) =>
     request<SimulationResponse>(`/api/training-plans/${planId}/simulate`, {
+      method: 'POST',
+    }),
+  planFinance: (planId: number) =>
+    request<PlanFinance>(`/api/training-plans/${planId}/finance`),
+  saveFinanceAssumptions: (planId: number, assumptions: FinanceAssumptions) =>
+    request<PlanFinance>(`/api/training-plans/${planId}/finance/assumptions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(assumptions),
+    }),
+  simulateFinances: (planId: number) =>
+    request<FinanceProjection>(`/api/training-plans/${planId}/finance/simulate`, {
       method: 'POST',
     }),
 }

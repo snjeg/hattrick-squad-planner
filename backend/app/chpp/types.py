@@ -37,3 +37,52 @@ class NormalizedPlayer:
 class NormalizedSquad:
     source_fetched_at: datetime | None
     players: tuple[NormalizedPlayer, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedFinance:
+    source_fetched_at: datetime | None
+    team_id: int
+    cash_balance: int
+    expected_cash: int | None
+    sponsor_income: int
+    player_wages: int
+    staff_costs: int
+    youth_costs: int
+    arena_costs: int
+    financial_income: int
+    financial_costs: int
+    temporary_income: int
+    temporary_costs: int
+    spectator_income: int
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedArena:
+    source_fetched_at: datetime | None
+    arena_id: int
+    team_id: int
+    arena_name: str
+    terraces: int
+    basic: int
+    roof: int
+    vip: int
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedFixture:
+    match_id: int
+    match_date: datetime
+    match_type: int
+    home_team_id: int
+    home_team_name: str
+    away_team_id: int
+    away_team_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedFixtures:
+    source_fetched_at: datetime | None
+    team_id: int
+    fixtures: tuple[NormalizedFixture, ...]

@@ -11,7 +11,7 @@ from app.models import OAuthCredential, OAuthRequestState, Player, PlayerSnapsho
 BACKEND_ROOT = Path(__file__).parents[1]
 
 
-def test_migrations_build_schema_through_milestone_3(
+def test_migrations_build_schema_through_milestone_4(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     database_url = f"sqlite:///{(tmp_path / 'migration.db').as_posix()}"
@@ -36,7 +36,15 @@ def test_migrations_build_schema_through_milestone_3(
         "training_blocks",
         "training_assignments",
         "training_appearances",
+        "finance_snapshots",
+        "arena_snapshots",
+        "fixture_snapshots",
+        "training_plan_finance_assumptions",
     }.issubset(inspector.get_table_names())
+    plan_columns = {
+        column["name"] for column in inspector.get_columns("training_plans")
+    }
+    assert "starting_finance_snapshot_id" in plan_columns
     get_settings.cache_clear()
 
 
@@ -74,5 +82,11 @@ def test_initial_migration_adopts_existing_milestone_1_sqlite(
     assert {"stamina", "form", "experience", "loyalty", "injury_level", "cards"}.issubset(
         {column["name"] for column in inspector.get_columns("player_snapshots")}
     )
-    assert "training_plans" in inspector.get_table_names()
+    assert {
+        "training_plans",
+        "finance_snapshots",
+        "arena_snapshots",
+        "fixture_snapshots",
+        "training_plan_finance_assumptions",
+    }.issubset(inspector.get_table_names())
     get_settings.cache_clear()

@@ -113,6 +113,7 @@ class TrainingPlanSummaryResponse(BaseModel):
     id: int
     name: str
     starting_sync_run_id: int
+    starting_finance_snapshot_id: int | None
     formula_version: str
     block_count: int
     total_weeks: int
@@ -165,6 +166,7 @@ class TrainingPlanResponse(BaseModel):
     id: int
     name: str
     starting_sync_run_id: int
+    starting_finance_snapshot_id: int | None
     formula_version: str
     estimated_starting_subskills: bool
     created_at: datetime
@@ -218,3 +220,112 @@ class SimulationResponse(BaseModel):
     total_weeks: int
     players: list[PlayerProjectionResponse]
     weekly_results: list[WeeklyResultResponse] | None
+
+
+class FinanceAssumptionsUpdate(BaseModel):
+    starting_cash_override: int | None = None
+    sponsor_income_override: int | None = Field(default=None, ge=0)
+    staff_cost_override: int | None = Field(default=None, ge=0)
+    youth_cost_override: int | None = Field(default=None, ge=0)
+    arena_cost_override: int | None = Field(default=None, ge=0)
+    expected_home_match_revenue: int | None = Field(default=None, ge=0)
+    weeks_until_season_boundary: int | None = Field(default=None, ge=0)
+    sponsor_income_after_boundary: int | None = Field(default=None, ge=0)
+
+
+class FinanceAssumptionsResponse(FinanceAssumptionsUpdate):
+    pass
+
+
+class FactualFinanceResponse(BaseModel):
+    snapshot_id: int
+    sync_run_id: int
+    observed_at: datetime
+    cash_balance: int
+    expected_cash: int | None
+    sponsor_income: int
+    player_wages: int
+    staff_costs: int
+    youth_costs: int
+    arena_costs: int
+    financial_income: int
+    financial_costs: int
+
+
+class ArenaSnapshotResponse(BaseModel):
+    arena_name: str
+    terraces: int
+    basic: int
+    roof: int
+    vip: int
+    total: int
+
+
+class FixtureResponse(BaseModel):
+    match_id: int
+    match_date: datetime
+    match_type: int
+    is_home: bool
+    opponent: str
+
+
+class PlanFinanceResponse(BaseModel):
+    factual: FactualFinanceResponse | None
+    arena: ArenaSnapshotResponse | None
+    fixtures: list[FixtureResponse]
+    assumptions: FinanceAssumptionsResponse
+    wage_model_version: str
+    wage_model_quality: str
+
+
+class PlayerWageCheckpointResponse(BaseModel):
+    block_id: int
+    block_order: int
+    weekly_wage: int
+
+
+class PlayerWageProjectionResponse(BaseModel):
+    player_id: int
+    starting_wage: int
+    starting_quality: str
+    after_blocks: list[PlayerWageCheckpointResponse]
+    final_wage: int
+
+
+class WeeklyFinanceRowResponse(BaseModel):
+    week: int
+    squad_wages: int
+    sponsor_income: int
+    match_income: int
+    fixed_costs: int
+    operating_cash_flow: int
+    capital_cash_flow: int
+    total_cash_flow: int
+    ending_cash: int
+    home_fixture_ids: list[int]
+
+
+class FinanceBlockCheckpointResponse(BaseModel):
+    block_id: int
+    block_order: int
+    week: int
+    squad_wages: int
+    ending_cash: int
+
+
+class FinanceProjectionResponse(BaseModel):
+    plan_id: int
+    wage_model_version: str
+    wage_model_quality: str
+    starting_cash: int
+    starting_weekly_wages: int
+    weekly_rows: list[WeeklyFinanceRowResponse]
+    block_checkpoints: list[FinanceBlockCheckpointResponse]
+    player_wages: list[PlayerWageProjectionResponse]
+    final_cash: int
+    final_weekly_wages: int
+    operating_cash_flow_total: int
+    capital_cash_flow_total: int
+    total_cash_flow: int
+    assumptions: FinanceAssumptionsResponse
+    uncertainty_notes: list[str]

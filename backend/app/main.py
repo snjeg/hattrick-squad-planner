@@ -10,6 +10,11 @@ from sqlalchemy.orm import Session
 from app.chpp.client import AccessToken, MockCHPPClient, OAuthCHPPClient
 from app.config import Settings, get_settings
 from app.database import get_session
+from app.finance_services import (
+    get_plan_finance,
+    run_finance_projection,
+    update_plan_finance_assumptions,
+)
 from app.models import OAuthCredential, OAuthRequestState
 from app.plan_services import (
     PlanNotFoundError,
@@ -29,7 +34,10 @@ from app.plan_services import (
 from app.schemas import (
     AuthStartResponse,
     CHPPStatusResponse,
+    FinanceAssumptionsUpdate,
+    FinanceProjectionResponse,
     HealthResponse,
+    PlanFinanceResponse,
     SimulationResponse,
     SquadResponse,
     SyncResponse,
@@ -48,7 +56,7 @@ from app.simulator.capacity import CapacityValidationError
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-app = FastAPI(title="Hattrick Squad Planner API", version="0.3.0")
+app = FastAPI(title="Hattrick Squad Planner API", version="0.4.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
@@ -157,6 +165,19 @@ def run_chpp_sync(session: SessionDependency) -> SyncResponse:
     class AuthenticatedClient:
         def fetch_own_senior_players(self, access_token: AccessToken | None = None) -> str:
             return live_client.fetch_own_senior_players(stored_token)
+
+        def fetch_own_economy(
+            self, team_id: int, access_token: AccessToken | None = None
+        ) -> str:
+            return live_client.fetch_own_economy(team_id, stored_token)
+
+        def fetch_own_arena(self, access_token: AccessToken | None = None) -> str:
+            return live_client.fetch_own_arena(stored_token)
+
+        def fetch_own_matches(
+            self, team_id: int, access_token: AccessToken | None = None
+        ) -> str:
+            return live_client.fetch_own_matches(team_id, stored_token)
 
     return sync_squad(session, AuthenticatedClient(), "chpp")
 
@@ -272,3 +293,32 @@ def simulate(
     detailed: Annotated[bool, Query()] = False,
 ) -> SimulationResponse:
     return run_training_simulation(session, plan_id, detailed=detailed)
+
+
+@app.get(
+    "/api/training-plans/{plan_id}/finance", response_model=PlanFinanceResponse
+)
+def plan_finance(session: SessionDependency, plan_id: int) -> PlanFinanceResponse:
+    return get_plan_finance(session, plan_id)
+
+
+@app.put(
+    "/api/training-plans/{plan_id}/finance/assumptions",
+    response_model=PlanFinanceResponse,
+)
+def update_finance_assumptions(
+    session: SessionDependency,
+    plan_id: int,
+    payload: FinanceAssumptionsUpdate,
+) -> PlanFinanceResponse:
+    return update_plan_finance_assumptions(session, plan_id, payload)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/finance/simulate",
+    response_model=FinanceProjectionResponse,
+)
+def simulate_finances(
+    session: SessionDependency, plan_id: int
+) -> FinanceProjectionResponse:
+    return run_finance_projection(session, plan_id)

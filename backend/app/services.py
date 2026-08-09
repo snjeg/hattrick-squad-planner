@@ -1,11 +1,20 @@
 from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.chpp.client import CHPPClient
+from app.chpp.client import CHPPClient, FinanceCHPPClient
+from app.chpp.finance_parser import parse_arena_xml, parse_economy_xml, parse_matches_xml
 from app.chpp.xml_parser import parse_players_xml
-from app.models import Player, PlayerSnapshot, SyncRun
+from app.models import (
+    ArenaSnapshot,
+    FinanceSnapshot,
+    FixtureSnapshot,
+    Player,
+    PlayerSnapshot,
+    SyncRun,
+)
 from app.schemas import SquadPlayerResponse, SquadResponse, SyncResponse
 
 
@@ -15,6 +24,26 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
     session.commit()
     try:
         squad = parse_players_xml(client.fetch_own_senior_players())
+        team_ids = {player.team_id for player in squad.players}
+        if len(team_ids) != 1:
+            raise ValueError("The senior squad response must contain exactly one team")
+        team_id = next(iter(team_ids))
+        finance_client = _supports_finance(client)
+        finance = (
+            parse_economy_xml(finance_client.fetch_own_economy(team_id))
+            if finance_client is not None
+            else None
+        )
+        arena = (
+            parse_arena_xml(finance_client.fetch_own_arena())
+            if finance_client is not None
+            else None
+        )
+        fixtures = (
+            parse_matches_xml(finance_client.fetch_own_matches(team_id))
+            if finance_client is not None
+            else None
+        )
         observed_at = datetime.now(UTC)
         for item in squad.players:
             player = session.scalar(
@@ -71,6 +100,61 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
                 )
             )
 
+        if finance is not None:
+            session.add(
+                FinanceSnapshot(
+                    sync_run_id=run.id,
+                    observed_at=observed_at,
+                    source_fetched_at=finance.source_fetched_at,
+                    team_id=finance.team_id,
+                    cash_balance=finance.cash_balance,
+                    expected_cash=finance.expected_cash,
+                    sponsor_income=finance.sponsor_income,
+                    player_wages=finance.player_wages,
+                    staff_costs=finance.staff_costs,
+                    youth_costs=finance.youth_costs,
+                    arena_costs=finance.arena_costs,
+                    financial_income=finance.financial_income,
+                    financial_costs=finance.financial_costs,
+                    temporary_income=finance.temporary_income,
+                    temporary_costs=finance.temporary_costs,
+                    spectator_income=finance.spectator_income,
+                )
+            )
+        if arena is not None:
+            session.add(
+                ArenaSnapshot(
+                    sync_run_id=run.id,
+                    observed_at=observed_at,
+                    source_fetched_at=arena.source_fetched_at,
+                    arena_id=arena.arena_id,
+                    team_id=arena.team_id,
+                    arena_name=arena.arena_name,
+                    terraces=arena.terraces,
+                    basic=arena.basic,
+                    roof=arena.roof,
+                    vip=arena.vip,
+                    total=arena.total,
+                )
+            )
+        if fixtures is not None:
+            session.add_all(
+                FixtureSnapshot(
+                    sync_run_id=run.id,
+                    observed_at=observed_at,
+                    source_fetched_at=fixtures.source_fetched_at,
+                    match_id=fixture.match_id,
+                    match_date=fixture.match_date,
+                    match_type=fixture.match_type,
+                    home_team_id=fixture.home_team_id,
+                    home_team_name=fixture.home_team_name,
+                    away_team_id=fixture.away_team_id,
+                    away_team_name=fixture.away_team_name,
+                    is_home=fixture.home_team_id == fixtures.team_id,
+                )
+                for fixture in fixtures.fixtures
+            )
+
         run.status = "completed"
         run.completed_at = observed_at
         run.imported_players = len(squad.players)
@@ -89,6 +173,15 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
             failed_run.error_message = str(error)[:2000]
             session.commit()
         raise
+
+
+def _supports_finance(client: CHPPClient) -> FinanceCHPPClient | None:
+    required = ("fetch_own_economy", "fetch_own_arena", "fetch_own_matches")
+    return (
+        cast(FinanceCHPPClient, client)
+        if all(callable(getattr(client, name, None)) for name in required)
+        else None
+    )
 
 
 def get_squad(session: Session) -> SquadResponse:
