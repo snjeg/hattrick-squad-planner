@@ -82,8 +82,8 @@ def test_current_snapshot_and_projected_checkpoint_adapter_without_mutation(
         "Final projected",
     ]
     assert (
-        response.checkpoints[1].match_average.midfield
-        > response.checkpoints[0].match_average.midfield
+        response.checkpoints[1].starting.midfield
+        > response.checkpoints[0].starting.midfield
     )
     assert response.final_change.midfield > 0
     assert response.final_change.central_attack == 0

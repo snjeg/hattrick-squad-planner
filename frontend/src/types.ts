@@ -105,7 +105,6 @@ export interface PlayerContributionAnalysis {
     block_id: number | null
     block_order: number | null
     starting: ContributionVector
-    match_average: ContributionVector
     effective_skills: Record<string, number>
   }>
   final_change: ContributionVector
@@ -114,7 +113,6 @@ export interface PlayerContributionAnalysis {
     loyalty_bonus: number
     mother_club_bonus_applied: boolean
     starting_stamina_factor: number
-    match_average_stamina_factor: number
     weather_factor: number
   }
   uncertainty_notes: string[]

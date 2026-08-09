@@ -106,7 +106,6 @@ def analyze_plan_player_contributions(
                 block_id=block_id,
                 block_order=block_order,
                 starting=_vector_response(result.starting),
-                match_average=_vector_response(result.match_average),
                 effective_skills={
                     skill.value: value
                     for skill, value in result.effective_skills.items()
@@ -115,7 +114,7 @@ def analyze_plan_player_contributions(
         )
 
     first = results[0]
-    final_change = results[-1].match_average.difference(first.match_average)
+    final_change = results[-1].starting.difference(first.starting)
     modifiers = first.modifiers
     return PlayerContributionAnalysisResponse(
         plan_id=plan_id,
@@ -134,7 +133,6 @@ def analyze_plan_player_contributions(
             loyalty_bonus=modifiers.loyalty_bonus,
             mother_club_bonus_applied=modifiers.mother_club_bonus_applied,
             starting_stamina_factor=modifiers.starting_stamina_factor,
-            match_average_stamina_factor=modifiers.match_average_stamina_factor,
             weather_factor=modifiers.weather_factor,
         ),
         uncertainty_notes=list(first.uncertainty_notes),

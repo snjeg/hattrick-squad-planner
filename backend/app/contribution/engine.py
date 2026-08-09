@@ -10,7 +10,6 @@ from app.contribution.modifiers import (
     experience_contributions,
     form_factor,
     loyalty_bonus,
-    match_average_stamina_factor,
     skill_rating,
     starting_stamina_factor,
     weather_factor,
@@ -30,7 +29,7 @@ from app.contribution.types import (
     SectorVector,
 )
 
-MODEL_VERSION = "ho-b58f36e2eecc98ba14d88be49c3042c575698134-contribution-v1"
+MODEL_VERSION = "ho-b58f36e2eecc98ba14d88be49c3042c575698134-contribution-v1-match-start"
 MODEL_QUALITY = "community-reference-high-confidence"
 
 
@@ -69,8 +68,6 @@ def calculate_player_contribution(
     """
 
     context = match_context or MatchContext()
-    if context.duration_minutes != 90:  # defensive check for future context variants
-        raise ContributionValidationError("Only 90-minute match averages are supported")
     _validate_position_order(position, order)
     weights = POSITION_ORDER_WEIGHTS.get((position.role, order, position.side))
     if weights is None:
@@ -90,8 +87,7 @@ def calculate_player_contribution(
     form = form_factor(player_state)
     loyalty, homegrown = loyalty_bonus(player_state)
     experience = experience_contributions(player_state)
-    stamina_start = starting_stamina_factor(player_state)
-    stamina_average = match_average_stamina_factor(player_state)
+    stamina_start = starting_stamina_factor()
     weather = weather_factor(player_state, context.weather)
 
     required_skills = {weight.skill for weight in weights}
@@ -112,10 +108,10 @@ def calculate_player_contribution(
             sector_values[sector] = value + experience[sector]
 
     starting = SectorVector.from_mapping(sector_values).scaled(stamina_start * weather)
-    average = SectorVector.from_mapping(sector_values).scaled(stamina_average * weather)
     notes = [
         "Raw player contribution is not a displayed Hattrick team-sector rating.",
-        "Match-average stamina uses HO's Schum-fitted 90-minute polynomial.",
+        "Only verified match-start contribution is exposed; match-average stamina "
+        "belongs after HO's nonlinear player-rating conversion and is deferred.",
         "Only verified base-rating specialty effects are included; special events are excluded.",
     ]
     if player_state.specialty == TECHNICAL_SPECIALTY and (
@@ -126,7 +122,6 @@ def calculate_player_contribution(
 
     return PlayerContributionResult(
         starting=starting,
-        match_average=average,
         effective_skills=MappingProxyType(effective),
         position=position,
         order=order,
@@ -138,7 +133,6 @@ def calculate_player_contribution(
             mother_club_bonus_applied=homegrown,
             experience_contribution=MappingProxyType(experience),
             starting_stamina_factor=stamina_start,
-            match_average_stamina_factor=stamina_average,
             weather_factor=weather,
         ),
         uncertainty_notes=tuple(notes),

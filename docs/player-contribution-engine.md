@@ -9,8 +9,8 @@ displayed Hattrick sector rating, a whole-lineup calculation, a player ranking, 
 lineup recommendation. The engine is framework-free and does not call CHPP, FastAPI, the
 database, or React.
 
-`starting` applies the minute-zero stamina factor. `match_average` applies the pinned
-90-minute average-stamina approximation. The plan adapter compares the current factual
+`starting` is the verified match-start vector. HO's minute-zero stamina factor is always
+`1.0`, so stamina does not alter this result. The plan adapter compares the current factual
 snapshot with projected trainable skills after each manual training block. It does not
 write projections back to factual snapshots.
 
@@ -56,16 +56,35 @@ Experience is added only to a sector with a positive positional/skill contributi
 HO. Sector experience factors are `0.73` midfield, `0.345` side defense, `0.48` central
 defense, `0.375` side attack, and `0.45` central attack.
 
-The 90-minute match-average multiplier is:
+## Stamina call-path audit
+
+The follow-up audit traced the exact pinned call path rather than only the polynomial:
+
+1. `getPlayerRatingMatchBeginning` reads `playerRatingCache` at minute `0`.
+2. `calcPlayerRating` calls `getPositionContribution` for every rating sector.
+3. `getPositionContribution` adds experience, then applies weather and minute-specific
+   `calcStamina`. At minute zero, `calcStamina` returns `1.0` because its starting `r0` is
+   at least `102`, then capped by `min(1, r0 / 100)`.
+4. `calcPlayerRating` multiplies each sector by its sector scale, weights midfield by
+   three, sums, and applies the nonlinear conversion `pow(sum, 1.2) / 4`.
+5. Only then does `getPlayerMatchAverageRating` multiply that scalar player rating by
+   `getMatchAverageStaminaFactor`.
+
+The scalar 90-minute multiplier is:
 
 ```text
 min(1, -0.0033 * stamina^2 + 0.085 * stamina + 0.51)
 ```
 
-HO exposes that polynomial for a player's match-average prediction after rating
-conversion. Applying it directly to the pre-team raw vector is this engine's documented
-interpretation so the primitive remains composable. Validate it against representative
-HO/live cases before a displayed-rating layer relies on it.
+Therefore multiplying this module's raw vector by the factor is not equivalent to HO. If
+`T(v) = pow(weighted(v), 1.2) / 4` and `k` is the stamina factor, HO computes `k*T(v)`,
+whereas pre-multiplying the vector produces `T(k*v) = k^1.2*T(v)`. They differ for
+`0 < k < 1`.
+
+Milestone 5 consequently exposes only the verified match-start vector. It does not expose
+a raw `match_average` vector or the scalar HO player rating. Both the nonlinear conversion
+and average-stamina placement remain deferred to Milestone 6; this is a boundary correction,
+not an additional team-rating implementation.
 
 Weather is separate match context. Technical players receive `1.05` in sun and `0.95` in
 rain; Quick players receive `0.95` in sun or rain; Powerful players receive `0.95` in sun
@@ -129,9 +148,10 @@ change the result. Unsupported combinations are rejected rather than filled with
 
 `POST /api/training-plans/{plan_id}/players/{player_id}/contributions` accepts position,
 side, order, and assumed weather. It returns current, after-each-block, and final projected
-match-average vectors plus the final delta and applied modifiers. Factual form, stamina,
-experience, loyalty, mother-club status, and specialty stay constant; only
-simulator-projected trainable skills change.
+match-start vectors plus the final delta and applied modifiers. Factual form, experience,
+loyalty, mother-club status, and specialty stay constant; only simulator-projected
+trainable skills change. Stamina remains available in normalized state for the future
+scalar layer but is not needed for the match-start vector.
 
 ## Deferred team layer discovered during research
 
@@ -148,8 +168,8 @@ audit. No lineup enumeration, comparison, scoring, or recommendation belongs her
 ## Remaining uncertainty and manual validation
 
 - HO's coefficients and experience curve are community estimates and can change.
-- Raw-vector use of HO's match-average stamina polynomial needs comparison with current
-  HO outputs and observed matches.
+- The match-average stamina ambiguity is resolved: it is a post-conversion scalar factor
+  in HO and is intentionally absent from this raw-vector API.
 - Fractional skills are plan estimates because CHPP exposes visible integer skills.
 - Specialty weather modifiers cover deterministic base-rating effects, not special events.
 - Public community position tables contain small rounded values differing from current HO;

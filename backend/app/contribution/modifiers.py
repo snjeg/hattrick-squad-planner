@@ -62,17 +62,11 @@ def experience_contributions(state: PlayerMatchState) -> dict[Sector, float]:
     return {sector: base * factor for sector, factor in _EXPERIENCE_SECTOR_FACTORS.items()}
 
 
-def starting_stamina_factor(state: PlayerMatchState) -> float:
-    _require_finite("stamina", state.stamina, 0.0, 10.0)
-    # HO's minute-zero calcStamina always caps at 1.0 for valid stamina values.
+def starting_stamina_factor() -> float:
+    # RatingPredictionModel.calcStamina starts at r0 >= 102 for every skill rating,
+    # then caps r0 / 100 at 1.0. Unknown stamina therefore does not prevent a
+    # verified match-start contribution.
     return 1.0
-
-
-def match_average_stamina_factor(state: PlayerMatchState) -> float:
-    # RatingPredictionModel.calcMatchAverageStaminaFactor, fitted by HO to
-    # Schum's published values. It consumes the displayed/fractional stamina skill.
-    stamina = _require_finite("stamina", state.stamina, 0.0, 10.0)
-    return min(1.0, -0.0033 * stamina**2 + 0.085 * stamina + 0.51)
 
 
 def weather_factor(state: PlayerMatchState, weather: MatchWeather) -> float:

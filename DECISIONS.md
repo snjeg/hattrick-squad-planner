@@ -306,8 +306,8 @@ observations, and preserve the original model version for reproducibility.
 ## 2026-08-09 - Individual contribution is a pre-team domain boundary
 
 **Decision:** Pin the seven-sector individual contribution primitive to Hattrick Organizer
-commit `b58f36e2eecc98ba14d88be49c3042c575698134`. Return raw starting and 90-minute
-match-average vectors with explicit modifiers and model metadata. Keep all lineup/team
+commit `b58f36e2eecc98ba14d88be49c3042c575698134`. Return raw match-start vectors with
+explicit modifiers and model metadata. Keep all lineup/team
 composition, displayed-sector conversion, tactics, ranking, and recommendation logic out
 of Milestone 5.
 
@@ -318,5 +318,9 @@ uncovered team scale factors and nonlinear conversion, but implementing those no
 cross the milestone boundary.
 
 **Revisit:** Before Milestone 6, audit the full ordering of overcrowding, team spirit,
-home/attitude/coach/tactics factors, stamina, and nonlinear sector conversion. Validate
-the raw-vector stamina interpretation against current HO and observed matches first.
+home/attitude/coach/tactics factors, stamina, and nonlinear sector conversion.
+
+The follow-up call-path audit established that HO applies
+`calcMatchAverageStaminaFactor` after `calcPlayerRating` has performed its nonlinear
+`pow(..., 1.2) / 4` conversion. Applying that factor to every raw sector is not
+mathematically equivalent, so Milestone 5 no longer exposes a raw match-average vector.

@@ -147,7 +147,6 @@ const contributionAnalysis: PlayerContributionAnalysis = {
       block_id: null,
       block_order: null,
       starting: { midfield: 1, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
-      match_average: { midfield: 1, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
       effective_skills: { playmaking: 9 },
     },
     {
@@ -156,7 +155,6 @@ const contributionAnalysis: PlayerContributionAnalysis = {
       block_id: null,
       block_order: null,
       starting: { midfield: 1.25, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
-      match_average: { midfield: 1.25, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
       effective_skills: { playmaking: 9.5 },
     },
   ],
@@ -166,7 +164,6 @@ const contributionAnalysis: PlayerContributionAnalysis = {
     loyalty_bonus: 1.5,
     mother_club_bonus_applied: true,
     starting_stamina_factor: 1,
-    match_average_stamina_factor: 0.94,
     weather_factor: 1,
   },
   uncertainty_notes: ['Raw player contribution is not a displayed team-sector rating.'],
@@ -236,7 +233,7 @@ describe('manual training plans', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Calculate contribution' }))
 
     expect(await screen.findByText('+0.250')).toBeInTheDocument()
-    expect(screen.getByText(/not displayed team ratings and not a lineup recommendation/i)).toBeInTheDocument()
+    expect(screen.getByText(/not displayed team ratings or a lineup recommendation/i)).toBeInTheDocument()
     expect(api.analyzeContributions).toHaveBeenCalledWith(1, 100001, {
       position: 'inner_midfielder',
       side: 'center',

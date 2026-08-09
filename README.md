@@ -106,13 +106,14 @@ attendance, transfer activity, and post-boundary sponsor income are not invented
 
 In a plan, choose one player, position, side, legal individual order, and weather
 assumption. **Calculate contribution** compares the current factual snapshot with projected
-skills after every manual training block. Results are raw match-average contributions to
+skills after every manual training block. Results are raw match-start contributions to
 midfield and the six defense/attack sectors; factual modifiers are held constant.
 
 The model is pinned to an audited Hattrick Organizer revision and labeled as a community
 estimate. It does not combine a lineup, calculate displayed team sectors, evaluate tactics,
 or recommend a player/position. See `docs/player-contribution-engine.md` before using its
-numbers for decisions.
+numbers for decisions. Match-average stamina is deferred because HO applies it only after
+nonlinear player-rating conversion; it is not multiplied into the raw sector vector.
 
 ## Live CHPP configuration
 

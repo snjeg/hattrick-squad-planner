@@ -251,7 +251,6 @@ class ContributionCheckpointResponse(BaseModel):
     block_id: int | None
     block_order: int | None
     starting: ContributionVectorResponse
-    match_average: ContributionVectorResponse
     effective_skills: dict[str, float]
 
 
@@ -260,7 +259,6 @@ class ContributionModifiersResponse(BaseModel):
     loyalty_bonus: float
     mother_club_bonus_applied: bool
     starting_stamina_factor: float
-    match_average_stamina_factor: float
     weather_factor: float
 
 

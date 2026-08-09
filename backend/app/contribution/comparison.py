@@ -22,7 +22,7 @@ def compare_contributions(
         raise ValueError("At least one contribution checkpoint is required")
     return ContributionComparison(
         checkpoints=checkpoints,
-        final_change=checkpoints[-1].contribution.match_average.difference(
-            checkpoints[0].contribution.match_average
+        final_change=checkpoints[-1].contribution.starting.difference(
+            checkpoints[0].contribution.starting
         ),
     )

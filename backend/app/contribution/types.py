@@ -91,12 +91,7 @@ class PlayerMatchState:
 
 @dataclass(frozen=True, slots=True)
 class MatchContext:
-    duration_minutes: int = 90
     weather: MatchWeather = MatchWeather.OVERCAST
-
-    def __post_init__(self) -> None:
-        if self.duration_minutes != 90:
-            raise ValueError("The pinned match-average stamina model supports 90 minutes only")
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,14 +132,12 @@ class AppliedModifiers:
     mother_club_bonus_applied: bool
     experience_contribution: Mapping[Sector, float]
     starting_stamina_factor: float
-    match_average_stamina_factor: float
     weather_factor: float
 
 
 @dataclass(frozen=True, slots=True)
 class PlayerContributionResult:
     starting: SectorVector
-    match_average: SectorVector
     effective_skills: Mapping[MatchSkill, float]
     position: PositionSlot
     order: IndividualOrder
