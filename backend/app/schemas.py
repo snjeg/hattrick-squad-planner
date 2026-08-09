@@ -9,6 +9,11 @@ from app.contribution.types import (
     PositionRole,
     PositionSide,
 )
+from app.squad_evaluation.types import (
+    EvaluationProfile,
+    SquadPlanningRole,
+    TrainingParticipation,
+)
 from app.team_rating.types import MatchAttitude, MatchLocation, TeamTactic
 from app.training.types import CoachLevel, Position, Skill, TrainingType
 
@@ -357,6 +362,180 @@ class PlanTeamRatingResponse(TeamRatingCalculationResponse):
     checkpoint: Literal["current", "after_block", "final"]
     block_id: int | None
     block_order: int | None
+
+
+class SquadMemberRequest(BaseModel):
+    player_id: int
+    state: SuppliedPlayerMatchState
+    planning_role: SquadPlanningRole
+    name: str | None = Field(default=None, max_length=120)
+    allowed_positions: list[PositionRole] | None = None
+    preferred_positions: list[PositionRole] = Field(default_factory=list)
+    training_participation: TrainingParticipation = TrainingParticipation.NONE
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class PlanSquadMemberRequest(BaseModel):
+    player_id: int
+    planning_role: SquadPlanningRole
+    allowed_positions: list[PositionRole] | None = None
+    preferred_positions: list[PositionRole] = Field(default_factory=list)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class SquadSearchConfigurationRequest(BaseModel):
+    beam_width: int = Field(default=40, ge=10, le=200)
+    candidates_per_slot: int = Field(default=14, ge=11, le=25)
+    evaluated_per_template: int = Field(default=10, ge=5, le=100)
+    retained_per_profile: int = Field(default=10, ge=3, le=50)
+    diversity_player_changes: int = Field(default=2, ge=1, le=6)
+
+
+class SquadEvaluationCalculateRequest(BaseModel):
+    members: list[SquadMemberRequest]
+    profiles: list[EvaluationProfile] = Field(
+        default_factory=lambda: list(EvaluationProfile)
+    )
+    context: TeamRatingContextRequest
+    search: SquadSearchConfigurationRequest = Field(
+        default_factory=SquadSearchConfigurationRequest
+    )
+    include_exit_players: bool = False
+
+
+class PlanSquadEvaluationRequest(BaseModel):
+    members: list[PlanSquadMemberRequest]
+    profiles: list[EvaluationProfile] = Field(
+        default_factory=lambda: list(EvaluationProfile)
+    )
+    context: TeamRatingContextRequest
+    checkpoint: Literal["current", "after_block", "final", "all"]
+    block_id: int | None = None
+    search: SquadSearchConfigurationRequest = Field(
+        default_factory=SquadSearchConfigurationRequest
+    )
+    include_exit_players: bool = False
+
+
+class GeneratedLineupPlayerResponse(BaseModel):
+    player_id: int
+    position: PositionRole
+    side: PositionSide
+    order: IndividualOrder
+
+
+class LineupUtilityResponse(BaseModel):
+    total: float
+    normalized_sectors: dict[str, float]
+    weighted_sectors: dict[str, float]
+
+
+class GeneratedLineupResponse(BaseModel):
+    profile: EvaluationProfile
+    formation: str
+    lineup: list[GeneratedLineupPlayerResponse]
+    sectors: dict[str, TeamSectorRatingResponse]
+    utility: LineupUtilityResponse
+
+
+class FormationEvaluationResponse(BaseModel):
+    formation: str
+    gap_from_best: float
+    lineup: GeneratedLineupResponse
+
+
+class ReplacementSensitivityResponse(BaseModel):
+    player_id: int
+    baseline_utility: float
+    replacement_utility: float | None
+    replacement_drop: float
+
+
+class RoleDepthEntryResponse(BaseModel):
+    player_id: int
+    best_contextual_utility: float
+    appearances: int
+
+
+class RoleDepthResponse(BaseModel):
+    role: PositionRole
+    entries: list[RoleDepthEntryResponse]
+
+
+class RotationQualityResponse(BaseModel):
+    peak_utility: float
+    distinct_top_k_average: float
+    starter_exclusion_average: float
+    distinct_lineup_count: int
+
+
+class CompositeSquadScoreResponse(BaseModel):
+    peak_strength: float
+    depth_resilience: float
+    formation_flexibility: float
+    rotation_quality: float
+    total: float
+    weights: dict[str, float]
+
+
+class TrainingCohortSummaryResponse(BaseModel):
+    full: int
+    partial: int
+    osmosis: int
+    bonus: int
+    mixed: int
+    none: int
+    competitive_contributors: int
+    training_beneficiaries: int
+    both: int
+    by_role_and_training: dict[str, int]
+
+
+class PlayerImportanceResponse(BaseModel):
+    player_id: int
+    planning_role: SquadPlanningRole
+    primary_profile_appearances: int
+    top_lineup_frequency: float
+    replacement_drop: float
+    useful_assignments: list[str]
+    training_participation: TrainingParticipation
+
+
+class SearchDiagnosticsResponse(BaseModel):
+    expanded_partial_lineups: int
+    evaluated_complete_lineups: int
+    retained_distinct_lineups: int
+    template_count: int
+    theoretical_expansion_bound: int
+    exhaustive: bool
+
+
+class SquadEvaluationResponse(BaseModel):
+    best_lineup_by_profile: dict[EvaluationProfile, GeneratedLineupResponse]
+    best_lineup_by_formation: list[FormationEvaluationResponse]
+    top_distinct_lineups: dict[EvaluationProfile, list[GeneratedLineupResponse]]
+    replacement_sensitivity: list[ReplacementSensitivityResponse]
+    role_depth: list[RoleDepthResponse]
+    rotation_quality: RotationQualityResponse
+    training_cohort: TrainingCohortSummaryResponse
+    squad_role_summary: dict[SquadPlanningRole, int]
+    player_importance: list[PlayerImportanceResponse]
+    composite_score: CompositeSquadScoreResponse
+    diagnostics: SearchDiagnosticsResponse
+    model_version: str
+    warnings: list[str]
+
+
+class PlanSquadCheckpointEvaluationResponse(BaseModel):
+    checkpoint: Literal["current", "after_block", "final"]
+    block_id: int | None
+    block_order: int | None
+    evaluation: SquadEvaluationResponse
+
+
+class PlanSquadEvaluationResponse(BaseModel):
+    plan_id: int
+    checkpoints: list[PlanSquadCheckpointEvaluationResponse]
 
 
 class FinanceAssumptionsUpdate(BaseModel):

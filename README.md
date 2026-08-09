@@ -1,8 +1,8 @@
 # Hattrick Squad Development Planner
 
-Milestone 6A adds a source-pinned team-sector evaluator for one explicitly selected XI.
-Managers assign all eleven players, positions, sides, and orders, then compare match-start
-ratings across training-plan checkpoints. It does not choose or recommend a lineup.
+Milestone 6B adds whole-squad evaluation across bounded candidate lineups, formations,
+rotation, one-player replacement depth, planning roles, and training cohorts. Peak XI is
+only one decomposed component; results are “best found” comparisons, not recommendations.
 
 Milestones 1 through 3 provide CHPP senior-player ingestion, immutable factual snapshots, a verified standalone training engine, and a persistent manual training-cycle simulator. Managers choose every block and assignment; the application projects the question “If I follow this plan, what happens?” without recommending a strategy.
 
@@ -21,6 +21,7 @@ backend/
   app/attendance/      Table-driven seat demand and gate-revenue domain
   app/contribution/    Individual seven-sector contribution domain
   app/team_rating/     Selected-XI team-sector rating domain
+  app/squad_evaluation/ Whole-squad candidate search and decomposed metrics
   fixtures/chpp/       Fictional CHPP XML used in mock mode
   tests/               Backend, migration, and training unit tests
 frontend/
@@ -33,6 +34,7 @@ docs/finance-projection.md Finance facts, assumptions, and projection semantics
 docs/attendance-model.md  Attendance tables, weather uncertainty, and revenue sharing
 docs/player-contribution-engine.md Individual contribution formula and source audit
 docs/team-rating-engine.md Selected-lineup aggregation, modifiers, and source audit
+docs/squad-evaluation-engine.md Squad roles, search, scoring, depth and checkpoints
 docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
@@ -124,6 +126,14 @@ current plan state, every block checkpoint, and the final projection. Team spiri
 confidence, coach style, attitude, location, tactic, and weather are explicit assumptions.
 See `docs/team-rating-engine.md` for the pinned HO call path and limitations.
 
+## Squad evaluation
+
+The **Squad Evaluation** workspace assigns plan-local roles and evaluates current, block,
+and final squad states for Balanced, Possession, Defensive, or Attacking profiles. It keeps
+peak strength separate from depth, formation flexibility, and rotation, and reports training
+beneficiaries without treating every non-starter as dead weight. See
+`docs/squad-evaluation-engine.md` for the bounded-search and scoring model.
+
 ## Live CHPP configuration
 
 Copy `backend/.env.example` to `backend/.env`, set `CHPP_MODE=live`, and provide credentials for an approved CHPP application. Never commit that file or credential values.
@@ -161,6 +171,8 @@ pnpm build
 - `POST /api/training-plans/{id}/players/{player_id}/contributions` - compare one player's current and projected raw sector contributions.
 - `POST /api/team-ratings/calculate` - evaluate eleven supplied normalized player states.
 - `POST /api/training-plans/{id}/team-ratings` - evaluate a selected XI at a plan checkpoint.
+- `POST /api/squad-evaluations/calculate` - evaluate a supplied normalized senior squad.
+- `POST /api/training-plans/{id}/squad-evaluation` - evaluate plan roles at one or all checkpoints.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
 - `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.

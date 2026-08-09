@@ -2,7 +2,15 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import TrainingPlans from './TrainingPlans'
-import type { PlanFinance, PlayerContributionAnalysis, Skill, TrainingPlan } from './types'
+import type {
+  PlanFinance,
+  PlanSquadEvaluation,
+  GeneratedLineup,
+  PlayerContributionAnalysis,
+  Position,
+  Skill,
+  TrainingPlan,
+} from './types'
 
 vi.mock('./api', () => ({
   api: {
@@ -19,6 +27,7 @@ vi.mock('./api', () => ({
     simulatePlan: vi.fn(),
     analyzeContributions: vi.fn(),
     evaluateTeamRating: vi.fn(),
+    evaluateSquad: vi.fn(),
     planFinance: vi.fn(),
     saveFinanceAssumptions: vi.fn(),
     saveFixtureAttendance: vi.fn(),
@@ -170,6 +179,92 @@ const contributionAnalysis: PlayerContributionAnalysis = {
   uncertainty_notes: ['Raw player contribution is not a displayed team-sector rating.'],
 }
 
+const squadPlan: TrainingPlan = {
+  ...savedPlan,
+  players: Array.from({ length: 11 }, (_, index) => ({
+    ...savedPlan.players[0],
+    player_id: 100001 + index,
+    player: `Squad player ${index + 1}`,
+    snapshot_id: 9 + index,
+  })),
+}
+
+const displayed = { value: 8, level: 8, level_name: 'excellent', sublevel: 'very low' }
+const sectors = Object.fromEntries([
+  'midfield', 'left_defense', 'central_defense', 'right_defense',
+  'left_attack', 'central_attack', 'right_attack',
+].map((sector) => [sector, {
+  raw_contribution: 10,
+  team_factor: 1,
+  adjusted_contribution: 10,
+  displayed,
+}])) as GeneratedLineup['sectors']
+const generatedLineup: GeneratedLineup = {
+  profile: 'balanced' as const,
+  formation: '4-4-2',
+  lineup: squadPlan.players.map((player, index) => ({
+    player_id: player.player_id,
+    position: (index === 0 ? 'goalkeeper' : index < 5 ? 'central_defender'
+      : index < 9 ? 'inner_midfielder' : 'forward') as Position,
+    side: 'center' as const,
+    order: 'normal' as const,
+  })),
+  sectors,
+  utility: {
+    total: 0.72,
+    normalized_sectors: Object.fromEntries(Object.keys(sectors).map((key) => [key, 0.72])) as GeneratedLineup['utility']['normalized_sectors'],
+    weighted_sectors: Object.fromEntries(Object.keys(sectors).map((key) => [key, 0.1])) as GeneratedLineup['utility']['weighted_sectors'],
+  },
+}
+const squadEvaluation = {
+  plan_id: 1,
+  checkpoints: [{
+    checkpoint: 'current' as const,
+    block_id: null,
+    block_order: null,
+    evaluation: {
+      best_lineup_by_profile: { balanced: generatedLineup },
+      best_lineup_by_formation: [{ formation: '4-4-2', gap_from_best: 0, lineup: generatedLineup }],
+      top_distinct_lineups: { balanced: [generatedLineup] },
+      replacement_sensitivity: squadPlan.players.map((player) => ({
+        player_id: player.player_id,
+        baseline_utility: 0.72,
+        replacement_utility: 0.69,
+        replacement_drop: 0.03,
+      })),
+      role_depth: [],
+      rotation_quality: {
+        peak_utility: 0.72,
+        distinct_top_k_average: 0.70,
+        starter_exclusion_average: 0.69,
+        distinct_lineup_count: 5,
+      },
+      training_cohort: {
+        full: 6, partial: 2, osmosis: 1, bonus: 0, mixed: 0, none: 2,
+        competitive_contributors: 11, training_beneficiaries: 9, both: 9,
+        by_role_and_training: {},
+      },
+      squad_role_summary: {
+        core: 0, rotation: 11, development: 0, profit_trainee: 0,
+        specialist: 0, backup: 0, exit: 0,
+      },
+      player_importance: [],
+      composite_score: {
+        peak_strength: 72, depth_resilience: 90, formation_flexibility: 88,
+        rotation_quality: 91, total: 81.5,
+        weights: { peak_strength: 0.4, depth_resilience: 0.25, formation_flexibility: 0.2, rotation_quality: 0.15 },
+      },
+      diagnostics: {
+        expanded_partial_lineups: 4800, evaluated_complete_lineups: 900,
+        retained_distinct_lineups: 10, template_count: 91,
+        theoretical_expansion_bound: 100000, exhaustive: false,
+      },
+      model_version: 'squad-evaluation-v1',
+      warnings: ['Best found; global optimality is not claimed.'],
+    },
+  }],
+} satisfies PlanSquadEvaluation
+
 describe('manual training plans', () => {
   afterEach(cleanup)
 
@@ -194,6 +289,7 @@ describe('manual training plans', () => {
     vi.mocked(api.planFinance).mockResolvedValue(savedFinance)
     vi.mocked(api.saveFinanceAssumptions).mockResolvedValue(savedFinance)
     vi.mocked(api.analyzeContributions).mockResolvedValue(contributionAnalysis)
+    vi.mocked(api.evaluateSquad).mockResolvedValue(squadEvaluation)
   })
 
   it('opens a saved plan and shows backend-calculated training eligibility', async () => {
@@ -251,5 +347,25 @@ describe('manual training plans', () => {
     expect(screen.getAllByLabelText(/Lineup player/)).toHaveLength(11)
     expect(screen.getByRole('button', { name: 'Evaluate selected XI' })).toBeDisabled()
     expect(screen.getByText(/does not choose, rank, or recommend an XI/i)).toBeInTheDocument()
+  })
+
+  it('evaluates whole-squad health without equating it to the peak XI', async () => {
+    vi.mocked(api.plan).mockResolvedValue(squadPlan)
+    render(<TrainingPlans />)
+    fireEvent.click(await screen.findByRole('button', { name: /Saved manual plan/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Squad Evaluation' })).toBeInTheDocument()
+    expect(screen.getByText(/Peak XI is only one component/i)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Squad evaluation profile'), {
+      target: { value: 'balanced' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Evaluate whole squad' }))
+
+    expect(await screen.findByText('Competitive squad components')).toBeInTheDocument()
+    expect(screen.getByText('81.5')).toBeInTheDocument()
+    expect(screen.getAllByText(/Global optimality is not claimed/i)).toHaveLength(2)
+    expect(api.evaluateSquad).toHaveBeenCalledWith(1, expect.objectContaining({
+      checkpoint: 'all', profiles: ['balanced'],
+    }))
   })
 })

@@ -158,6 +158,104 @@ export interface PlanTeamRating {
   uncertainty_notes: string[]
 }
 
+export type SquadPlanningRole = 'core' | 'rotation' | 'development' | 'profit_trainee'
+  | 'specialist' | 'backup' | 'exit'
+export type EvaluationProfile = 'balanced' | 'possession' | 'defensive' | 'attacking'
+export type TrainingParticipation = 'full' | 'partial' | 'osmosis' | 'bonus' | 'mixed' | 'none'
+
+export interface GeneratedLineup {
+  profile: EvaluationProfile
+  formation: string
+  lineup: Array<{
+    player_id: number
+    position: Position
+    side: PositionSide
+    order: IndividualOrder
+  }>
+  sectors: PlanTeamRating['sectors']
+  utility: {
+    total: number
+    normalized_sectors: Record<ContributionSector, number>
+    weighted_sectors: Record<ContributionSector, number>
+  }
+}
+
+export interface SquadEvaluation {
+  best_lineup_by_profile: Partial<Record<EvaluationProfile, GeneratedLineup>>
+  best_lineup_by_formation: Array<{
+    formation: string
+    gap_from_best: number
+    lineup: GeneratedLineup
+  }>
+  top_distinct_lineups: Partial<Record<EvaluationProfile, GeneratedLineup[]>>
+  replacement_sensitivity: Array<{
+    player_id: number
+    baseline_utility: number
+    replacement_utility: number | null
+    replacement_drop: number
+  }>
+  role_depth: Array<{
+    role: Position
+    entries: Array<{ player_id: number; best_contextual_utility: number; appearances: number }>
+  }>
+  rotation_quality: {
+    peak_utility: number
+    distinct_top_k_average: number
+    starter_exclusion_average: number
+    distinct_lineup_count: number
+  }
+  training_cohort: {
+    full: number
+    partial: number
+    osmosis: number
+    bonus: number
+    mixed: number
+    none: number
+    competitive_contributors: number
+    training_beneficiaries: number
+    both: number
+    by_role_and_training: Record<string, number>
+  }
+  squad_role_summary: Record<SquadPlanningRole, number>
+  player_importance: Array<{
+    player_id: number
+    planning_role: SquadPlanningRole
+    primary_profile_appearances: number
+    top_lineup_frequency: number
+    replacement_drop: number
+    useful_assignments: string[]
+    training_participation: TrainingParticipation
+  }>
+  composite_score: {
+    peak_strength: number
+    depth_resilience: number
+    formation_flexibility: number
+    rotation_quality: number
+    total: number
+    weights: Record<string, number>
+  }
+  diagnostics: {
+    expanded_partial_lineups: number
+    evaluated_complete_lineups: number
+    retained_distinct_lineups: number
+    template_count: number
+    theoretical_expansion_bound: number
+    exhaustive: boolean
+  }
+  model_version: string
+  warnings: string[]
+}
+
+export interface PlanSquadEvaluation {
+  plan_id: number
+  checkpoints: Array<{
+    checkpoint: 'current' | 'after_block' | 'final'
+    block_id: number | null
+    block_order: number | null
+    evaluation: SquadEvaluation
+  }>
+}
+
 export interface TrainingPlanSummary {
   id: number
   name: string

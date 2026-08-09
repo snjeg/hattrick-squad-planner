@@ -10,6 +10,7 @@ import type {
   LineupEntry,
   MatchAttitude,
   MatchLocation,
+  PlanSquadEvaluation,
   PlanTeamRating,
   PlanFinance,
   PlayerContributionAnalysis,
@@ -23,6 +24,8 @@ import type {
   TrainingType,
   TeamRatingContext,
   TeamTactic,
+  EvaluationProfile,
+  SquadPlanningRole,
 } from './types'
 
 const trainingTypes: TrainingType[] = [
@@ -85,6 +88,12 @@ const trainedSkills: Record<TrainingType, Skill[]> = {
   defensive_positions: ['defending'],
   wing_attacks: ['winger'],
 }
+const squadPlanningRoles: SquadPlanningRole[] = [
+  'core', 'rotation', 'development', 'profit_trainee', 'specialist', 'backup', 'exit',
+]
+const evaluationProfiles: EvaluationProfile[] = [
+  'balanced', 'possession', 'defensive', 'attacking',
+]
 
 interface DraftAssignment {
   position: Position | ''
@@ -157,6 +166,9 @@ function TrainingPlans() {
   const [lineup, setLineup] = useState<LineupDraft[]>(initialLineup)
   const [teamContext, setTeamContext] = useState<TeamRatingContext>(initialTeamContext)
   const [teamRatings, setTeamRatings] = useState<PlanTeamRating[]>([])
+  const [squadRoles, setSquadRoles] = useState<Record<number, SquadPlanningRole>>({})
+  const [squadProfile, setSquadProfile] = useState<EvaluationProfile>('balanced')
+  const [squadEvaluation, setSquadEvaluation] = useState<PlanSquadEvaluation | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -202,6 +214,10 @@ function TrainingPlans() {
     return next
   }
 
+  function defaultSquadRoles(nextPlan: TrainingPlan): Record<number, SquadPlanningRole> {
+    return Object.fromEntries(nextPlan.players.map((player) => [player.player_id, 'rotation']))
+  }
+
   const relevantSkills = useMemo(() => {
     const result = new Set<Skill>()
     for (const block of plan?.blocks ?? []) {
@@ -226,6 +242,8 @@ function TrainingPlans() {
       setContributionPlayerId(loaded.players[0]?.player_id ?? null)
       setLineup(initialLineup)
       setTeamRatings([])
+      setSquadRoles(defaultSquadRoles(loaded))
+      setSquadEvaluation(null)
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -248,6 +266,8 @@ function TrainingPlans() {
       setContributionPlayerId(created.players[0]?.player_id ?? null)
       setLineup(initialLineup)
       setTeamRatings([])
+      setSquadRoles(defaultSquadRoles(created))
+      setSquadEvaluation(null)
       await refreshPlans()
     } catch (reason) {
       handleError(reason)
@@ -267,6 +287,7 @@ function TrainingPlans() {
       setDrafts(draftsFor(updated, nextBlockId))
       setSimulation(null)
       setFinanceProjection(null)
+      setSquadEvaluation(null)
       await refreshPlans()
     } catch (reason) {
       handleError(reason)
@@ -370,6 +391,27 @@ function TrainingPlans() {
         api.evaluateTeamRating(plan.id, { lineup: selected, context: teamContext, checkpoint: 'final' }),
       ]
       setTeamRatings(await Promise.all(requests))
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function evaluateWholeSquad() {
+    if (!plan || plan.players.length < 11) return
+    setBusy(true)
+    setError(null)
+    try {
+      setSquadEvaluation(await api.evaluateSquad(plan.id, {
+        members: plan.players.map((player) => ({
+          player_id: player.player_id,
+          planning_role: squadRoles[player.player_id] ?? 'rotation',
+        })),
+        profiles: [squadProfile],
+        context: teamContext,
+        checkpoint: 'all',
+      }))
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -664,6 +706,61 @@ function TrainingPlans() {
                   <div className="table-scroll"><table className="contribution-table"><thead><tr><th>Sector</th>{teamRatings.map((rating, index) => <th key={`${rating.checkpoint}-${rating.block_id ?? index}`}><span className={`state-badge ${rating.checkpoint === 'current' ? 'badge-current' : 'badge-projected'}`}>{rating.checkpoint === 'current' ? 'Current' : 'Projected'}</span>{rating.checkpoint === 'after_block' ? `After block ${rating.block_order}` : label(rating.checkpoint)}<small>{rating.formation}</small></th>)}</tr></thead><tbody>{contributionSectors.map((sector) => <tr key={sector}><th>{label(sector)}</th>{teamRatings.map((rating, index) => <td key={`${sector}-${rating.checkpoint}-${rating.block_id ?? index}`}><strong>{rating.sectors[sector].displayed.value.toFixed(2)}</strong><small>{label(rating.sectors[sector].displayed.level_name)} · {label(rating.sectors[sector].displayed.sublevel)}</small><small>Raw {rating.sectors[sector].raw_contribution.toFixed(2)}</small></td>)}</tr>)}</tbody></table></div>
                   <ul className="uncertainty-list">{teamRatings[0].uncertainty_notes.map((note) => <li key={note}>{note}</li>)}</ul>
                   <p className="formula-note">Model {teamRatings[0].model_version} · {teamRatings[0].model_quality}.</p>
+                </div>}
+              </section>
+
+              <section className="contribution-card squad-evaluation" aria-labelledby="squad-evaluation-heading">
+                <div className="section-heading">
+                  <div>
+                    <div className="heading-kicker"><span className="state-badge badge-community">Community estimate</span><span>Whole-squad analysis</span></div>
+                    <h2 id="squad-evaluation-heading">Squad Evaluation</h2>
+                  </div>
+                  <span className="quality-pill">Bounded deterministic search</span>
+                </div>
+                <p className="formula-note">
+                  Peak XI is only one component. Depth, one-player replacement resilience,
+                  rotation quality, formation flexibility, and training participation remain separate.
+                </p>
+                <div className="squad-evaluation-controls">
+                  <label>Evaluation profile<select aria-label="Squad evaluation profile" value={squadProfile} onChange={(event) => { setSquadProfile(event.target.value as EvaluationProfile); setSquadEvaluation(null) }}>{evaluationProfiles.map((profile) => <option key={profile} value={profile}>{label(profile)}</option>)}</select></label>
+                  <button className="primary-button" disabled={busy || plan.players.length < 11} onClick={() => void evaluateWholeSquad()}>Evaluate whole squad</button>
+                  {plan.players.length < 11 && <small>At least eleven plan players are required.</small>}
+                </div>
+                <div className="table-scroll"><table><thead><tr><th>Player</th><th>Planning role</th><th>Current age</th></tr></thead><tbody>
+                  {plan.players.map((player) => <tr key={player.player_id}>
+                    <th>{player.player}</th>
+                    <td><select aria-label={`Planning role for ${player.player}`} value={squadRoles[player.player_id] ?? 'rotation'} onChange={(event) => { setSquadRoles({ ...squadRoles, [player.player_id]: event.target.value as SquadPlanningRole }); setSquadEvaluation(null) }}>{squadPlanningRoles.map((role) => <option key={role} value={role}>{label(role)}</option>)}</select></td>
+                    <td>{formatAge(player.age_years, player.age_days)}</td>
+                  </tr>)}
+                </tbody></table></div>
+                {squadEvaluation && <div className="squad-evaluation-results">
+                  <div className="subsection-label"><span className="state-badge badge-projected">Projected</span><strong>Competitive squad components</strong></div>
+                  <div className="table-scroll"><table><thead><tr><th>Checkpoint</th><th>Peak (40%)</th><th>Depth (25%)</th><th>Flexibility (20%)</th><th>Rotation (15%)</th><th>Composite</th><th>Top evaluated lineup</th></tr></thead><tbody>
+                    {squadEvaluation.checkpoints.map((checkpoint, index) => {
+                      const best = checkpoint.evaluation.best_lineup_by_profile[squadProfile]
+                      const score = checkpoint.evaluation.composite_score
+                      return <tr key={`${checkpoint.checkpoint}-${checkpoint.block_id ?? index}`}>
+                        <th><span className={`state-badge ${checkpoint.checkpoint === 'current' ? 'badge-current' : 'badge-projected'}`}>{checkpoint.checkpoint === 'current' ? 'Current' : 'Projected'}</span>{checkpoint.checkpoint === 'after_block' ? `After block ${checkpoint.block_order}` : label(checkpoint.checkpoint)}</th>
+                        <td>{score.peak_strength.toFixed(1)}</td><td>{score.depth_resilience.toFixed(1)}</td><td>{score.formation_flexibility.toFixed(1)}</td><td>{score.rotation_quality.toFixed(1)}</td><td><strong>{score.total.toFixed(1)}</strong></td><td>{best ? `${best.formation} · ${(best.utility.total * 100).toFixed(1)}` : 'Unavailable'}</td>
+                      </tr>
+                    })}
+                  </tbody></table></div>
+                  {(() => {
+                    const finalCheckpoint = squadEvaluation.checkpoints.at(-1)
+                    if (!finalCheckpoint) return null
+                    const evaluation = finalCheckpoint.evaluation
+                    const best = evaluation.best_lineup_by_profile[squadProfile]
+                    return <>
+                      <div className="squad-dashboard-grid">
+                        <div><div className="subsection-label"><strong>Formation flexibility</strong></div><div className="table-scroll"><table><thead><tr><th>Formation</th><th>Utility</th><th>Gap</th></tr></thead><tbody>{evaluation.best_lineup_by_formation.map((item) => <tr key={item.formation}><th>{item.formation}</th><td>{(item.lineup.utility.total * 100).toFixed(1)}</td><td>-{(item.gap_from_best * 100).toFixed(1)}</td></tr>)}</tbody></table></div></div>
+                        <div><div className="subsection-label"><strong>Replacement sensitivity</strong></div><div className="table-scroll"><table><thead><tr><th>Player</th><th>Utility drop</th></tr></thead><tbody>{evaluation.replacement_sensitivity.slice().sort((a, b) => b.replacement_drop - a.replacement_drop).slice(0, 8).map((item) => <tr key={item.player_id}><th>{plan.players.find((player) => player.player_id === item.player_id)?.player ?? item.player_id}</th><td>{(item.replacement_drop * 100).toFixed(2)}</td></tr>)}</tbody></table></div></div>
+                      </div>
+                      <div className="training-cohort-strip"><span>Full <strong>{evaluation.training_cohort.full}</strong></span><span>Partial <strong>{evaluation.training_cohort.partial}</strong></span><span>Osmosis <strong>{evaluation.training_cohort.osmosis}</strong></span><span>Mixed <strong>{evaluation.training_cohort.mixed}</strong></span><span>Untrained <strong>{evaluation.training_cohort.none}</strong></span><span>Competitive + trained <strong>{evaluation.training_cohort.both}</strong></span></div>
+                      {best && <details className="lineup-inspection"><summary>Inspect top evaluated {label(squadProfile)} lineup</summary><p className="formula-note">Best found, not guaranteed globally optimal · {best.formation} · utility {(best.utility.total * 100).toFixed(1)}</p><div className="table-scroll"><table><thead><tr><th>Player</th><th>Position</th><th>Side</th><th>Order</th></tr></thead><tbody>{best.lineup.map((entry) => <tr key={`${entry.player_id}-${entry.position}-${entry.side}`}><th>{plan.players.find((player) => player.player_id === entry.player_id)?.player ?? entry.player_id}</th><td>{label(entry.position)}</td><td>{label(entry.side)}</td><td>{label(entry.order)}</td></tr>)}</tbody></table></div><div className="sector-pill-row">{contributionSectors.map((sector) => <span key={sector}>{label(sector)} <strong>{best.sectors[sector].displayed.value.toFixed(2)}</strong></span>)}</div></details>}
+                      <p className="formula-note">Evaluated {evaluation.diagnostics.evaluated_complete_lineups.toLocaleString()} complete candidate lineups from {evaluation.diagnostics.expanded_partial_lineups.toLocaleString()} bounded expansions; retained {evaluation.diagnostics.retained_distinct_lineups} distinct results. Global optimality is not claimed.</p>
+                      <ul className="uncertainty-list">{evaluation.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+                    </>
+                  })()}
                 </div>}
               </section>
 
