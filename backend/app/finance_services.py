@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.attendance.engine import estimate_attendance, weather_scenarios
+from app.attendance.sharing import revenue_share
 from app.attendance.types import (
     AttendanceEstimate,
     AttendanceRequest,
@@ -24,9 +25,9 @@ from app.models import (
 )
 from app.plan_services import PlanValidationError, _domain_plan, _load_plan
 from app.schemas import (
+    ArenaSnapshotResponse,
     AttendanceEstimateResponse,
     AttendanceSectionResponse,
-    ArenaSnapshotResponse,
     FactualFinanceResponse,
     FinanceAssumptionsResponse,
     FinanceAssumptionsUpdate,
@@ -61,9 +62,7 @@ def _assumption_response(
     )
 
 
-def _ensure_assumptions(
-    session: Session, plan_id: int
-) -> TrainingPlanFinanceAssumptions:
+def _ensure_assumptions(session: Session, plan_id: int) -> TrainingPlanFinanceAssumptions:
     plan = _load_plan(session, plan_id)
     if plan.finance_assumptions is None:
         plan.finance_assumptions = TrainingPlanFinanceAssumptions()
@@ -97,7 +96,7 @@ def get_plan_finance(session: Session, plan_id: int) -> PlanFinanceResponse:
     def fixture_response(fixture: FixtureSnapshot) -> FixtureResponse:
         item = fixture_assumptions.get(fixture.match_id)
         weather_value = item.weather_override if item is not None else None
-        estimates = _fixture_estimates(
+        estimate, scenarios, model_status, uncertainty_notes = _fixture_estimates(
             factual=factual,
             arena=arena,
             assumptions=assumptions,
@@ -112,9 +111,12 @@ def get_plan_finance(session: Session, plan_id: int) -> PlanFinanceResponse:
             opponent=fixture.away_team_name if fixture.is_home else fixture.home_team_name,
             weather_override=weather_value,
             manual_revenue_override=(item.manual_revenue_override if item else None),
-            attendance_estimate=estimates[0],
-            weather_scenarios=estimates[1],
+            attendance_estimate=estimate,
+            weather_scenarios=scenarios,
+            attendance_model_status=model_status,
+            attendance_uncertainty_notes=uncertainty_notes,
         )
+
     return PlanFinanceResponse(
         factual=(
             FactualFinanceResponse(
@@ -247,9 +249,30 @@ def _fixture_estimates(
     assumptions: TrainingPlanFinanceAssumptions,
     fixture: FixtureSnapshot,
     weather_value: str | None,
-) -> tuple[AttendanceEstimateResponse | None, dict[str, AttendanceEstimateResponse]]:
-    if not fixture.is_home or factual is None or arena is None:
-        return None, {}
+) -> tuple[
+    AttendanceEstimateResponse | None,
+    dict[str, AttendanceEstimateResponse],
+    str,
+    list[str],
+]:
+    if not fixture.is_home:
+        return (
+            None,
+            {},
+            "unsupported_away_host_facts",
+            [
+                "Away attendance is not estimated because the host club's supporter and "
+                "arena facts are unavailable; use a manual club-revenue override for any "
+                "known cup, qualifier, or friendly share."
+            ],
+        )
+    if factual is None or arena is None:
+        return (
+            None,
+            {},
+            "missing_plan_facts",
+            ["Attendance needs plan-bound supporter and arena facts."],
+        )
     supporter_count = getattr(factual, "supporter_count", None)
     mood = (
         assumptions.fan_mood_override
@@ -257,7 +280,12 @@ def _fixture_estimates(
         else factual.fan_mood
     )
     if supporter_count is None or mood is None:
-        return None, {}
+        return (
+            None,
+            {},
+            "missing_supporter_facts",
+            ["Attendance needs a supporter count and supported fan-mood value."],
+        )
     capacity = SeatCounts(arena.terraces, arena.basic, arena.roof, arena.vip)
     base = AttendanceRequest(
         supporter_count,
@@ -280,14 +308,27 @@ def _fixture_estimates(
                     True,
                 )
             )
-            return _estimate_response(result, weather), {}
+            return _estimate_response(result, weather), {}, "estimated", list(result.notes)
         results = weather_scenarios(base)
-        return None, {
-            weather.value: _estimate_response(result, weather)
-            for weather, result in results.items()
-        }
+        return (
+            None,
+            {
+                weather.value: _estimate_response(result, weather)
+                for weather, result in results.items()
+            },
+            "weather_scenarios",
+            [
+                "Fixture weather is unknown; four scenarios are shown and none is selected "
+                "for finance projection."
+            ],
+        )
     except UnsupportedFanMood:
-        return None, {}
+        return (
+            None,
+            {},
+            "unsupported_fan_mood",
+            ["No sourced community attendance coefficient exists for this fan mood."],
+        )
 
 
 def _value(override: int | None, factual: int | None, label: str) -> int:
@@ -306,9 +347,7 @@ def _week_for(match_date: datetime, observed_at: datetime) -> int:
     return math.ceil(seconds / (7 * 24 * 60 * 60))
 
 
-def run_finance_projection(
-    session: Session, plan_id: int
-) -> FinanceProjectionResponse:
+def run_finance_projection(session: Session, plan_id: int) -> FinanceProjectionResponse:
     plan = _load_plan(session, plan_id)
     assumptions_row = _ensure_assumptions(session, plan_id)
     factual = plan.finance_snapshot
@@ -363,9 +402,7 @@ def run_finance_projection(
     )
     horizon = training.total_weeks
     fixture_rows = session.scalars(
-        select(FixtureSnapshot).where(
-            FixtureSnapshot.sync_run_id == plan.starting_sync_run_id
-        )
+        select(FixtureSnapshot).where(FixtureSnapshot.sync_run_id == plan.starting_sync_run_id)
     ).all()
     arena = session.scalar(
         select(ArenaSnapshot).where(ArenaSnapshot.sync_run_id == plan.starting_sync_run_id)
@@ -389,7 +426,7 @@ def run_finance_projection(
             and item is not None
             and item.weather_override is not None
         ):
-            estimate, _ = _fixture_estimates(
+            estimate, _, _, _ = _fixture_estimates(
                 factual=factual,
                 arena=arena,
                 assumptions=assumptions_row,
@@ -414,11 +451,7 @@ def run_finance_projection(
                 week=week,
                 is_home=fixture.is_home,
                 match_type=fixture.match_type,
-                opponent=(
-                    fixture.away_team_name
-                    if fixture.is_home
-                    else fixture.home_team_name
-                ),
+                opponent=(fixture.away_team_name if fixture.is_home else fixture.home_team_name),
                 club_revenue=revenue,
                 revenue_source=source,
             )
@@ -437,6 +470,19 @@ def run_finance_projection(
         block_end_weeks=tuple(block_end_weeks),
     )
     notes = list(wage_projection.uncertainty_notes) + list(projected.uncertainty_notes)
+    if any(
+        not fixture.is_home
+        and revenue_share(fixture.match_type, is_home=False) not in (None, 0.0)
+        and (
+            (item := per_fixture.get(fixture.match_id)) is None
+            or item.manual_revenue_override is None
+        )
+        for fixture in fixture_rows
+    ):
+        notes.append(
+            "Away cup, qualifier, or friendly gate income is excluded when host supporter/"
+            "arena facts and a manual fixture-revenue override are unavailable."
+        )
     if factual is not None and (factual.financial_income or factual.financial_costs):
         notes.append(
             "Current financial income/cost is balance-dependent and is not extrapolated "

@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from app.attendance.sharing import revenue_share
 from app.attendance.tables import (
@@ -6,8 +6,8 @@ from app.attendance.tables import (
     MODEL_QUALITY,
     MODEL_VERSION,
     TICKET_PRICES,
-    WEEKLY_MAINTENANCE,
     WEATHER_MODIFIERS,
+    WEEKLY_MAINTENANCE,
 )
 from app.attendance.types import (
     AttendanceEstimate,
@@ -64,8 +64,7 @@ def estimate_attendance(request: AttendanceRequest) -> AttendanceEstimate:
     opponent = (
         None
         if club is None
-        else int(Decimal(str(gross)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        - club
+        else int(Decimal(str(gross)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) - club
     )
     notes: tuple[str, ...] = (
         "Community arena-sizing table used as an approximate demand baseline.",

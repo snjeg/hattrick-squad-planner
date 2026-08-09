@@ -69,8 +69,10 @@ Each fixture resolves club revenue in this order:
 
 The domain supports away revenue shares. The current service cannot estimate an away gate
 because the plan snapshot does not contain the host's supporter and arena inputs; a manual
-override can represent known cup or friendly income. Weekly finance rows expose contributing
-fixture IDs and the source used for every fixture.
+override can represent known cup or friendly income. Fixture output reports this as
+`unsupported_away_host_facts` with an uncertainty note rather than returning a misleading
+zero-attendance estimate. Weekly finance rows expose contributing fixture IDs and the source
+used for every fixture.
 
 ## Traceability and exclusions
 

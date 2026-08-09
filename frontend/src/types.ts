@@ -211,6 +211,8 @@ export interface PlanFinance {
     manual_revenue_override: number | null
     attendance_estimate: AttendanceEstimate | null
     weather_scenarios: Record<string, AttendanceEstimate>
+    attendance_model_status: string
+    attendance_uncertainty_notes: string[]
   }>
   assumptions: FinanceAssumptions
   wage_model_version: string

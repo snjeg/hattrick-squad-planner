@@ -312,6 +312,8 @@ class FixtureResponse(BaseModel):
     manual_revenue_override: int | None = None
     attendance_estimate: AttendanceEstimateResponse | None = None
     weather_scenarios: dict[str, AttendanceEstimateResponse] = Field(default_factory=dict)
+    attendance_model_status: str
+    attendance_uncertainty_notes: list[str] = Field(default_factory=list)
 
 
 class PlanFinanceResponse(BaseModel):

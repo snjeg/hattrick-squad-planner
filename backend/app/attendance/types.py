@@ -1,15 +1,15 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class SeatCategory(str, Enum):
+class SeatCategory(StrEnum):
     TERRACES = "terraces"
     BASIC = "basic"
     ROOF = "roof"
     VIP = "vip"
 
 
-class Weather(str, Enum):
+class Weather(StrEnum):
     RAIN = "rain"
     OVERCAST = "overcast"
     PARTLY_CLOUDY = "partly_cloudy"

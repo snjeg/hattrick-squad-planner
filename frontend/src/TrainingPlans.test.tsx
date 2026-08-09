@@ -110,6 +110,8 @@ const savedFinance: PlanFinance = {
     manual_revenue_override: null,
     attendance_estimate: null,
     weather_scenarios: {},
+    attendance_model_status: 'missing_supporter_facts',
+    attendance_uncertainty_notes: ['Attendance estimate unavailable.'],
   }],
   assumptions: {
     starting_cash_override: null,

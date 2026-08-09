@@ -10,7 +10,7 @@ from app.finance_services import (
     run_finance_projection,
     update_plan_finance_assumptions,
 )
-from app.models import FinanceSnapshot, PlayerSnapshot
+from app.models import FinanceSnapshot, FixtureSnapshot, PlayerSnapshot
 from app.plan_services import add_training_block, create_training_plan
 from app.schemas import (
     FinanceAssumptionsUpdate,
@@ -24,11 +24,9 @@ FIXTURES = Path(__file__).parents[1] / "fixtures" / "chpp"
 
 
 class ChangedEconomyClient(MockCHPPClient):
-    def fetch_own_economy(
-        self, team_id: int, access_token: AccessToken | None = None
-    ) -> str:
-        return super().fetch_own_economy(team_id).replace(
-            "<Cash>850000</Cash>", "<Cash>975000</Cash>"
+    def fetch_own_economy(self, team_id: int, access_token: AccessToken | None = None) -> str:
+        return (
+            super().fetch_own_economy(team_id).replace("<Cash>850000</Cash>", "<Cash>975000</Cash>")
         )
 
 
@@ -87,9 +85,7 @@ def test_balance_dependent_financial_income_is_not_extrapolated(
         -37_860,
         -37_860,
     ]
-    assert any(
-        "balance-dependent" in note for note in projection.uncertainty_notes
-    )
+    assert any("balance-dependent" in note for note in projection.uncertainty_notes)
 
 
 def test_projection_is_deterministic_and_never_mutates_facts(session: Session) -> None:
@@ -167,19 +163,55 @@ def test_fixture_weather_enables_attendance_estimate_and_finance_priority(
         json={"weather_override": "rain", "manual_revenue_override": None},
     )
     assert saved.status_code == 200
-    estimate = next(
-        item for item in saved.json()["fixtures"] if item["match_id"] == 700001
-    )["attendance_estimate"]
+    estimate = next(item for item in saved.json()["fixtures"] if item["match_id"] == 700001)[
+        "attendance_estimate"
+    ]
     assert estimate["weather"] == "rain"
     assert estimate["quality"] == "approximate-low-confidence"
 
-    projection = client.post(
-        f"/api/training-plans/{plan_id}/finance/simulate"
-    ).json()
+    projection = client.post(f"/api/training-plans/{plan_id}/finance/simulate").json()
     assert projection["weekly_rows"][0]["match_income"] == estimate["club_revenue"]
-    assert projection["weekly_rows"][0]["match_revenue_sources"] == {
-        "700001": "attendance_model"
-    }
+    assert projection["weekly_rows"][0]["match_revenue_sources"] == {"700001": "attendance_model"}
+
+
+def test_away_fixture_exposes_missing_host_facts_and_manual_fallback(
+    session_factory: sessionmaker[Session], client: TestClient
+) -> None:
+    with session_factory() as session:
+        plan_id = finance_plan(session, weeks=3)
+
+    finance = client.get(f"/api/training-plans/{plan_id}/finance").json()
+    away = next(item for item in finance["fixtures"] if item["match_id"] == 700002)
+
+    assert away["attendance_model_status"] == "unsupported_away_host_facts"
+    assert away["attendance_estimate"] is None
+    assert away["weather_scenarios"] == {}
+    assert "host club's supporter" in away["attendance_uncertainty_notes"][0]
+
+
+def test_unresolved_away_shared_gate_is_called_out_in_projection(
+    session: Session,
+) -> None:
+    plan_id = finance_plan(session, weeks=3)
+    plan_finance = get_plan_finance(session, plan_id)
+    assert plan_finance.factual is not None
+    away = session.scalar(
+        select(FixtureSnapshot).where(
+            FixtureSnapshot.sync_run_id == plan_finance.factual.sync_run_id,
+            FixtureSnapshot.match_id == 700002,
+        )
+    )
+    assert away is not None
+    away.match_type = 4
+    session.commit()
+
+    projection = run_finance_projection(session, plan_id)
+
+    assert projection.weekly_rows[1].match_income == 0
+    assert any(
+        "Away cup, qualifier, or friendly gate income is excluded" in note
+        for note in projection.uncertainty_notes
+    )
 
 
 def test_manual_fixture_revenue_beats_attendance_estimate(
@@ -192,9 +224,7 @@ def test_manual_fixture_revenue_beats_attendance_estimate(
         json={"weather_override": "sunny", "manual_revenue_override": 12345},
     )
 
-    projection = client.post(
-        f"/api/training-plans/{plan_id}/finance/simulate"
-    ).json()
+    projection = client.post(f"/api/training-plans/{plan_id}/finance/simulate").json()
     assert projection["weekly_rows"][0]["match_income"] == 12345
     assert projection["weekly_rows"][0]["match_revenue_sources"] == {
         "700001": "manual_fixture_override"

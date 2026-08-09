@@ -3,8 +3,13 @@ import pytest
 from app.attendance.engine import estimate_attendance, weather_scenarios
 from app.attendance.sharing import revenue_share
 from app.attendance.tables import DEMAND_PER_FAN, TICKET_PRICES, WEEKLY_MAINTENANCE
-from app.attendance.types import AttendanceRequest, SeatCategory, SeatCounts, UnsupportedFanMood, Weather
-
+from app.attendance.types import (
+    AttendanceRequest,
+    SeatCategory,
+    SeatCounts,
+    UnsupportedFanMood,
+    Weather,
+)
 
 CAPACITY = SeatCounts(20_000, 8_000, 6_000, 1_000)
 
@@ -40,9 +45,10 @@ def test_every_sourced_mood_has_all_seat_coefficients(mood: int) -> None:
 
 
 def test_mood_increases_unconstrained_demand() -> None:
-    assert estimate_attendance(request(fan_mood=8)).total_attendance > estimate_attendance(
-        request(fan_mood=6)
-    ).total_attendance
+    assert (
+        estimate_attendance(request(fan_mood=8)).total_attendance
+        > estimate_attendance(request(fan_mood=6)).total_attendance
+    )
 
 
 def test_rain_reduces_total_and_shifts_share_to_covered_seats() -> None:
@@ -78,7 +84,15 @@ def test_section_and_gross_revenue_use_official_prices() -> None:
 
 @pytest.mark.parametrize(
     ("match_type", "is_home", "expected"),
-    [(1, True, 1.0), (1, False, 0.0), (3, True, 2 / 3), (3, False, 1 / 3), (2, True, .5), (4, False, .5), (5, False, .5)],
+    [
+        (1, True, 1.0),
+        (1, False, 0.0),
+        (3, True, 2 / 3),
+        (3, False, 1 / 3),
+        (2, True, 0.5),
+        (4, False, 0.5),
+        (5, False, 0.5),
+    ],
 )
 def test_revenue_sharing(match_type: int, is_home: bool, expected: float) -> None:
     assert revenue_share(match_type, is_home=is_home) == pytest.approx(expected)
