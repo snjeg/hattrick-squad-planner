@@ -4,6 +4,22 @@ This file records product and architectural decisions that materially affect fut
 
 ---
 
+## 2026-08-09 — Team ratings evaluate explicit lineups at match start
+
+**Decision:** Milestone 6A accepts one user-selected legal XI and explicit match context. It
+reuses the Milestone 5 contribution primitive, applies HO overcrowding before experience,
+aggregates seven sectors, then applies verified team factors and nonlinear conversion. It
+does not select or recommend players.
+
+**Reason:** This preserves the pinned HO operation order and creates a deterministic future
+evaluation primitive without allowing the milestone to become an optimizer.
+
+**Consequence:** Match-average ratings, formation confusion, and squad-level reasoning are
+deferred. HO applies stamina inside each minute's aggregation, so match-start output is safer
+than a scalar average approximation.
+
+---
+
 ## 2026-08-08 — Product focus
 
 **Decision:** The product is a squad-development and training-planning tool, not primarily a lineup planner.

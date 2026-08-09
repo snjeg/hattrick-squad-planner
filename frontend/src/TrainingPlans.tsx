@@ -7,6 +7,10 @@ import type {
   ContributionSector,
   IndividualOrder,
   MatchWeather,
+  LineupEntry,
+  MatchAttitude,
+  MatchLocation,
+  PlanTeamRating,
   PlanFinance,
   PlayerContributionAnalysis,
   Position,
@@ -17,6 +21,8 @@ import type {
   TrainingPlan,
   TrainingPlanSummary,
   TrainingType,
+  TeamRatingContext,
+  TeamTactic,
 } from './types'
 
 const trainingTypes: TrainingType[] = [
@@ -86,6 +92,34 @@ interface DraftAssignment {
   isSetPieceTaker: boolean
 }
 
+interface LineupDraft extends Omit<LineupEntry, 'player_id'> {
+  player_id: number | null
+}
+
+const initialLineup: LineupDraft[] = [
+  { player_id: null, position: 'goalkeeper', side: 'center', order: 'normal' },
+  { player_id: null, position: 'wingback', side: 'left', order: 'normal' },
+  { player_id: null, position: 'central_defender', side: 'left', order: 'normal' },
+  { player_id: null, position: 'central_defender', side: 'right', order: 'normal' },
+  { player_id: null, position: 'wingback', side: 'right', order: 'normal' },
+  { player_id: null, position: 'winger', side: 'left', order: 'normal' },
+  { player_id: null, position: 'inner_midfielder', side: 'left', order: 'normal' },
+  { player_id: null, position: 'inner_midfielder', side: 'right', order: 'normal' },
+  { player_id: null, position: 'winger', side: 'right', order: 'normal' },
+  { player_id: null, position: 'forward', side: 'left', order: 'normal' },
+  { player_id: null, position: 'forward', side: 'right', order: 'normal' },
+]
+
+const initialTeamContext: TeamRatingContext = {
+  team_spirit: 5.5,
+  confidence: 5,
+  coach_style: 0,
+  attitude: 'normal',
+  location: 'away',
+  tactic: 'normal',
+  weather: 'overcast',
+}
+
 function label(value: string): string {
   return value
     .split('_')
@@ -120,6 +154,9 @@ function TrainingPlans() {
   const [contributionSide, setContributionSide] = useState<PositionSide>('center')
   const [contributionOrder, setContributionOrder] = useState<IndividualOrder>('normal')
   const [contributionWeather, setContributionWeather] = useState<MatchWeather>('overcast')
+  const [lineup, setLineup] = useState<LineupDraft[]>(initialLineup)
+  const [teamContext, setTeamContext] = useState<TeamRatingContext>(initialTeamContext)
+  const [teamRatings, setTeamRatings] = useState<PlanTeamRating[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -187,6 +224,8 @@ function TrainingPlans() {
       setFinanceProjection(null)
       setContribution(null)
       setContributionPlayerId(loaded.players[0]?.player_id ?? null)
+      setLineup(initialLineup)
+      setTeamRatings([])
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -207,6 +246,8 @@ function TrainingPlans() {
       setFinanceProjection(null)
       setContribution(null)
       setContributionPlayerId(created.players[0]?.player_id ?? null)
+      setLineup(initialLineup)
+      setTeamRatings([])
       await refreshPlans()
     } catch (reason) {
       handleError(reason)
@@ -299,6 +340,41 @@ function TrainingPlans() {
     setContributionSide(
       position === 'wingback' || position === 'winger' ? 'left' : 'center',
     )
+  }
+
+  function updateLineupSlot(index: number, changes: Partial<LineupDraft>) {
+    setLineup(lineup.map((slot, slotIndex) => {
+      if (slotIndex !== index) return slot
+      const next = { ...slot, ...changes }
+      if (changes.position) {
+        next.order = 'normal'
+        next.side = changes.position === 'goalkeeper' ? 'center'
+          : changes.position === 'wingback' || changes.position === 'winger' ? 'left' : 'center'
+      }
+      return next
+    }))
+    setTeamRatings([])
+  }
+
+  async function evaluateLineup() {
+    if (!plan || lineup.some((slot) => slot.player_id === null)) return
+    setBusy(true)
+    setError(null)
+    const selected = lineup as LineupEntry[]
+    try {
+      const requests = [
+        api.evaluateTeamRating(plan.id, { lineup: selected, context: teamContext, checkpoint: 'current' }),
+        ...plan.blocks.map((block) => api.evaluateTeamRating(plan.id, {
+          lineup: selected, context: teamContext, checkpoint: 'after_block' as const, block_id: block.id,
+        })),
+        api.evaluateTeamRating(plan.id, { lineup: selected, context: teamContext, checkpoint: 'final' }),
+      ]
+      setTeamRatings(await Promise.all(requests))
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function updateAssumption(field: keyof FinanceAssumptions, value: string) {
@@ -551,6 +627,44 @@ function TrainingPlans() {
                     <p className="formula-note">Model {contribution.model_version} · {contribution.model_quality}.</p>
                   </div>
                 )}
+              </section>
+
+              <section className="contribution-card lineup-evaluation" aria-labelledby="lineup-heading">
+                <div className="section-heading">
+                  <div>
+                    <div className="heading-kicker"><span className="state-badge badge-community">Community estimate</span><span>One manually selected XI</span></div>
+                    <h2 id="lineup-heading">Lineup evaluation</h2>
+                  </div>
+                  <span className="quality-pill">Match-start team sectors</span>
+                </div>
+                <p className="formula-note">
+                  Assign all eleven players yourself. This evaluates that exact lineup across the
+                  plan checkpoints; it does not choose, rank, or recommend an XI.
+                </p>
+                <div className="table-scroll"><table><thead><tr><th>Slot</th><th>Player</th><th>Role</th><th>Side</th><th>Order</th></tr></thead><tbody>
+                  {lineup.map((slot, index) => <tr key={index}>
+                    <th>{index + 1}</th>
+                    <td><select aria-label={`Lineup player ${index + 1}`} value={slot.player_id ?? ''} onChange={(event) => updateLineupSlot(index, { player_id: event.target.value ? Number(event.target.value) : null })}><option value="">Select player</option>{plan.players.map((player) => <option key={player.player_id} value={player.player_id}>{player.player}</option>)}</select></td>
+                    <td><select aria-label={`Lineup role ${index + 1}`} value={slot.position} onChange={(event) => updateLineupSlot(index, { position: event.target.value as Position })}>{positions.map((position) => <option key={position} value={position}>{label(position)}</option>)}</select></td>
+                    <td><select aria-label={`Lineup side ${index + 1}`} value={slot.side} disabled={slot.position === 'goalkeeper'} onChange={(event) => updateLineupSlot(index, { side: event.target.value as PositionSide })}>{(['left', 'center', 'right'] as PositionSide[]).filter((side) => (slot.position !== 'wingback' && slot.position !== 'winger' || side !== 'center') && (slot.order !== 'towards_wing' || side !== 'center')).map((side) => <option key={side} value={side}>{label(side)}</option>)}</select></td>
+                    <td><select aria-label={`Lineup order ${index + 1}`} value={slot.order} onChange={(event) => updateLineupSlot(index, { order: event.target.value as IndividualOrder, ...(event.target.value === 'towards_wing' && slot.side === 'center' ? { side: 'left' as PositionSide } : {}) })}>{legalOrders[slot.position].map((order) => <option key={order} value={order}>{label(order)}</option>)}</select></td>
+                  </tr>)}
+                </tbody></table></div>
+                <div className="team-context-controls">
+                  <label><span><span className="state-badge badge-assumption">Assumption</span> Team spirit</span><input aria-label="Team spirit" type="number" min="0" max="10.75" step="0.25" value={teamContext.team_spirit} onChange={(event) => { setTeamContext({ ...teamContext, team_spirit: Number(event.target.value) }); setTeamRatings([]) }} /></label>
+                  <label>Confidence<input aria-label="Team confidence" type="number" min="0" max="9" value={teamContext.confidence} onChange={(event) => { setTeamContext({ ...teamContext, confidence: Number(event.target.value) }); setTeamRatings([]) }} /></label>
+                  <label>Coach style<input aria-label="Coach style" type="number" min="-10" max="10" value={teamContext.coach_style} onChange={(event) => { setTeamContext({ ...teamContext, coach_style: Number(event.target.value) }); setTeamRatings([]) }} /></label>
+                  <label>Attitude<select aria-label="Match attitude" value={teamContext.attitude} onChange={(event) => { setTeamContext({ ...teamContext, attitude: event.target.value as MatchAttitude }); setTeamRatings([]) }}><option value="play_it_cool">Play it cool</option><option value="normal">Normal</option><option value="match_of_the_season">Match of the Season</option></select></label>
+                  <label>Location<select aria-label="Match location" value={teamContext.location} onChange={(event) => { setTeamContext({ ...teamContext, location: event.target.value as MatchLocation }); setTeamRatings([]) }}><option value="away">Away</option><option value="home">Home</option><option value="away_derby">Away derby</option><option value="neutral">Neutral</option><option value="tournament">Tournament</option></select></label>
+                  <label>Tactic<select aria-label="Team tactic" value={teamContext.tactic} onChange={(event) => { setTeamContext({ ...teamContext, tactic: event.target.value as TeamTactic }); setTeamRatings([]) }}><option value="normal">Normal</option><option value="pressing">Pressing</option><option value="counter_attacks">Counter-attacks</option><option value="attack_in_middle">Attack in middle</option><option value="attack_in_wings">Attack in wings</option><option value="play_creatively">Play creatively</option><option value="long_shots">Long shots</option></select></label>
+                  <label>Weather<select aria-label="Lineup weather" value={teamContext.weather} onChange={(event) => { setTeamContext({ ...teamContext, weather: event.target.value as MatchWeather }); setTeamRatings([]) }}><option value="overcast">Overcast</option><option value="partly_cloudy">Partly cloudy</option><option value="sunny">Sunny</option><option value="rain">Rain</option></select></label>
+                  <button className="primary-button" disabled={busy || lineup.some((slot) => slot.player_id === null)} onClick={() => void evaluateLineup()}>Evaluate selected XI</button>
+                </div>
+                {teamRatings.length > 0 && <div className="contribution-results">
+                  <div className="table-scroll"><table className="contribution-table"><thead><tr><th>Sector</th>{teamRatings.map((rating, index) => <th key={`${rating.checkpoint}-${rating.block_id ?? index}`}><span className={`state-badge ${rating.checkpoint === 'current' ? 'badge-current' : 'badge-projected'}`}>{rating.checkpoint === 'current' ? 'Current' : 'Projected'}</span>{rating.checkpoint === 'after_block' ? `After block ${rating.block_order}` : label(rating.checkpoint)}<small>{rating.formation}</small></th>)}</tr></thead><tbody>{contributionSectors.map((sector) => <tr key={sector}><th>{label(sector)}</th>{teamRatings.map((rating, index) => <td key={`${sector}-${rating.checkpoint}-${rating.block_id ?? index}`}><strong>{rating.sectors[sector].displayed.value.toFixed(2)}</strong><small>{label(rating.sectors[sector].displayed.level_name)} · {label(rating.sectors[sector].displayed.sublevel)}</small><small>Raw {rating.sectors[sector].raw_contribution.toFixed(2)}</small></td>)}</tr>)}</tbody></table></div>
+                  <ul className="uncertainty-list">{teamRatings[0].uncertainty_notes.map((note) => <li key={note}>{note}</li>)}</ul>
+                  <p className="formula-note">Model {teamRatings[0].model_version} · {teamRatings[0].model_quality}.</p>
+                </div>}
               </section>
 
               {finance && (

@@ -43,10 +43,14 @@ from app.schemas import (
     FixtureAttendanceUpdate,
     HealthResponse,
     PlanFinanceResponse,
+    PlanTeamRatingRequest,
+    PlanTeamRatingResponse,
     PlayerContributionAnalysisResponse,
     SimulationResponse,
     SquadResponse,
     SyncResponse,
+    TeamRatingCalculateRequest,
+    TeamRatingCalculationResponse,
     TrainingAssignmentsReplace,
     TrainingBlockCreate,
     TrainingBlockOrderUpdate,
@@ -58,6 +62,8 @@ from app.schemas import (
 )
 from app.services import get_squad, sync_squad
 from app.simulator.capacity import CapacityValidationError
+from app.team_rating.types import TeamRatingValidationError
+from app.team_rating_services import evaluate_plan_team_rating, evaluate_supplied_team_rating
 
 SessionDependency = Annotated[Session, Depends(get_session)]
 
@@ -81,6 +87,7 @@ def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
 @app.exception_handler(PlanValidationError)
 @app.exception_handler(CapacityValidationError)
 @app.exception_handler(ContributionValidationError)
+@app.exception_handler(TeamRatingValidationError)
 def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(error)})
 
@@ -226,6 +233,23 @@ def analyze_contributions(
     payload: ContributionAnalysisRequest,
 ) -> PlayerContributionAnalysisResponse:
     return analyze_plan_player_contributions(session, plan_id, player_id, payload)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/team-ratings",
+    response_model=PlanTeamRatingResponse,
+)
+def evaluate_team_rating(
+    session: SessionDependency, plan_id: int, payload: PlanTeamRatingRequest
+) -> PlanTeamRatingResponse:
+    return evaluate_plan_team_rating(session, plan_id, payload)
+
+
+@app.post("/api/team-ratings/calculate", response_model=TeamRatingCalculationResponse)
+def calculate_supplied_team_rating(
+    payload: TeamRatingCalculateRequest,
+) -> TeamRatingCalculationResponse:
+    return evaluate_supplied_team_rating(payload)
 
 
 @app.patch("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)

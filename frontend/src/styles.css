@@ -133,6 +133,10 @@ input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0
 .contribution-controls label { display: grid; gap: 6px; color: #617365; font-size: 11px; font-weight: 700; }
 .contribution-controls .primary-button { width: auto; min-width: 170px; padding: 0 14px; }
 .contribution-results { border-top: 1px solid #dce2dc; }
+.lineup-evaluation { margin-top: 24px; }
+.team-context-controls { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; padding: 20px 24px; border-top: 1px solid #dce2dc; }
+.team-context-controls label { display: grid; gap: 6px; color: #617365; font-size: 11px; font-weight: 700; }
+.team-context-controls .primary-button { align-self: end; }
 .contribution-table th:first-child { min-width: 150px; padding-left: 24px; }
 .contribution-table thead th:not(:first-child) { min-width: 130px; vertical-align: bottom; }
 .contribution-table thead .state-badge { margin: 0 auto 5px; }

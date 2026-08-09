@@ -5,6 +5,9 @@ import type {
   FinanceProjection,
   PlanFinance,
   PlayerContributionAnalysis,
+  LineupEntry,
+  PlanTeamRating,
+  TeamRatingContext,
   Position,
   PositionSide,
   IndividualOrder,
@@ -124,6 +127,19 @@ export const api = {
         body: JSON.stringify(value),
       },
     ),
+  evaluateTeamRating: (
+    planId: number,
+    value: {
+      lineup: LineupEntry[]
+      context: TeamRatingContext
+      checkpoint: 'current' | 'after_block' | 'final'
+      block_id?: number
+    },
+  ) => request<PlanTeamRating>(`/api/training-plans/${planId}/team-ratings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(value),
+  }),
   planFinance: (planId: number) =>
     request<PlanFinance>(`/api/training-plans/${planId}/finance`),
   saveFinanceAssumptions: (planId: number, assumptions: FinanceAssumptions) =>

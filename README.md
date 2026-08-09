@@ -1,9 +1,8 @@
 # Hattrick Squad Development Planner
 
-Milestone 5 adds a source-pinned individual player contribution primitive to the existing
-CHPP import, manual training simulator, and plan-bound finance scenarios. Managers can
-compare one player's current and projected raw seven-sector contribution for a chosen
-position and order. This is not a displayed team rating or lineup recommendation.
+Milestone 6A adds a source-pinned team-sector evaluator for one explicitly selected XI.
+Managers assign all eleven players, positions, sides, and orders, then compare match-start
+ratings across training-plan checkpoints. It does not choose or recommend a lineup.
 
 Milestones 1 through 3 provide CHPP senior-player ingestion, immutable factual snapshots, a verified standalone training engine, and a persistent manual training-cycle simulator. Managers choose every block and assignment; the application projects the question “If I follow this plan, what happens?” without recommending a strategy.
 
@@ -21,6 +20,7 @@ backend/
   app/finance/         Framework-independent cash-flow projection domain
   app/attendance/      Table-driven seat demand and gate-revenue domain
   app/contribution/    Individual seven-sector contribution domain
+  app/team_rating/     Selected-XI team-sector rating domain
   fixtures/chpp/       Fictional CHPP XML used in mock mode
   tests/               Backend, migration, and training unit tests
 frontend/
@@ -32,6 +32,7 @@ docs/wage-engine.md     Wage sources, approximation, and uncertainty
 docs/finance-projection.md Finance facts, assumptions, and projection semantics
 docs/attendance-model.md  Attendance tables, weather uncertainty, and revenue sharing
 docs/player-contribution-engine.md Individual contribution formula and source audit
+docs/team-rating-engine.md Selected-lineup aggregation, modifiers, and source audit
 docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
@@ -115,6 +116,14 @@ or recommend a player/position. See `docs/player-contribution-engine.md` before 
 numbers for decisions. Match-average stamina is deferred because HO applies it only after
 nonlinear player-rating conversion; it is not multiplied into the raw sector vector.
 
+## Selected-lineup evaluation
+
+The **Lineup evaluation** workspace requires the manager to assign all eleven players and
+their exact roles, sides, and orders. It returns the seven match-start team sectors for the
+current plan state, every block checkpoint, and the final projection. Team spirit,
+confidence, coach style, attitude, location, tactic, and weather are explicit assumptions.
+See `docs/team-rating-engine.md` for the pinned HO call path and limitations.
+
 ## Live CHPP configuration
 
 Copy `backend/.env.example` to `backend/.env`, set `CHPP_MODE=live`, and provide credentials for an approved CHPP application. Never commit that file or credential values.
@@ -150,12 +159,14 @@ pnpm build
 - `PUT /api/training-plans/{id}/blocks/{block}/assignments` - replace planned positional exposure.
 - `POST /api/training-plans/{id}/simulate` - run the hypothetical week-by-week projection; add `?detailed=true` for weekly output.
 - `POST /api/training-plans/{id}/players/{player_id}/contributions` - compare one player's current and projected raw sector contributions.
+- `POST /api/team-ratings/calculate` - evaluate eleven supplied normalized player states.
+- `POST /api/training-plans/{id}/team-ratings` - evaluate a selected XI at a plan checkpoint.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
 - `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.
 - `POST /api/training-plans/{id}/finance/simulate` - project weekly wages and operating cash flow.
 
 The simulator is manual: there is deliberately no optimizer, recommended training cycle,
-transfer advice or valuation, lineup engine, tactics model, stadium optimizer, or finance
-recommendation. Read `PROJECT_SPEC.md`, `AGENTS.md`, and `DECISIONS.md` before extending
-the product.
+transfer advice or valuation, automatic lineup selection, tactic-strength/chance model,
+stadium optimizer, or finance recommendation. Read `PROJECT_SPEC.md`, `AGENTS.md`, and
+`DECISIONS.md` before extending the product.

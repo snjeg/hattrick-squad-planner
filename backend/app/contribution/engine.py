@@ -101,6 +101,7 @@ def calculate_player_contribution(
         coefficient = weight.coefficient_for(player_state.specialty)
         sector_values[weight.sector] += effective[weight.skill] * coefficient
 
+    positional_before_experience = SectorVector.from_mapping(sector_values)
     # HO adds sector-specific experience only when the positional/skill contribution
     # for that sector is positive, then applies stamina to the combined value.
     for sector, value in sector_values.items():
@@ -122,6 +123,7 @@ def calculate_player_contribution(
 
     return PlayerContributionResult(
         starting=starting,
+        positional_before_experience=positional_before_experience,
         effective_skills=MappingProxyType(effective),
         position=position,
         order=order,
