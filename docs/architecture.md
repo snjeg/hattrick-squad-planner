@@ -1,4 +1,4 @@
-# Architecture through Milestone 4.1
+# Architecture through Milestone 5
 
 ## Data flow
 
@@ -116,6 +116,23 @@ club's changing balance.
 `finance_services.py` translates between plan-bound database facts and these independent
 domains.
 
+## Player contribution domain
+
+`backend/app/contribution/` is a framework-independent individual-player primitive. It
+combines fractional skills, factual form/stamina/experience/loyalty/homegrown/specialty,
+one legal position/order/side, and explicit weather into seven raw sector contributions.
+Its coefficient map and modifiers are pinned to the audited current HO Schum model in
+`docs/player-contribution-engine.md`.
+
+`contribution_services.py` reads a plan's immutable factual snapshot, combines it with
+simulator-projected trainable skills at each block checkpoint, and serializes a
+current-versus-projected comparison. It never persists projected state.
+
+The contribution vector is deliberately pre-team. It excludes overcrowding, team spirit,
+home advantage, attitude, coach/team modifiers, tactics, nonlinear displayed-sector
+conversion, lineup enumeration, and recommendations. Relevant HO team-layer research is
+documented for Milestone 6 but is not implemented here.
+
 ## CHPP boundaries and credential safety
 
 The integration uses only CHPP OAuth and XML endpoints. It does not accept Hattrick passwords, scrape HTML, schedule downloads, submit match orders, or automate transfers. Mock mode remains the default and follows the same parser and persistence path as live data.
@@ -130,6 +147,6 @@ Plaintext OAuth-token storage exists only to support single-user local developme
 - Fractional starting skills default to visible +0.00; automatic inference remains future work.
 - The simple plan UI supports one appearance per player while the API supports mixed segments.
 - Capacity is an aggregate two-match validator, not an automatic lineup or match simulator.
-- Exact wages or attendance, stadium optimization, transfers, lineup ratings, tactics, and
+- Exact wages or attendance, stadium optimization, transfers, team/lineup ratings, tactics, and
   finance recommendations remain future work. Wage and attendance results are labeled
   approximations, not verified reproductions of Hattrick's private formulas.

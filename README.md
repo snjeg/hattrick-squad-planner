@@ -1,9 +1,9 @@
 # Hattrick Squad Development Planner
 
-Milestone 4.1 adds plan-bound economy, arena, fixture, attendance, wage, and cash-flow scenarios to the
-existing CHPP squad import and manual training simulator. Managers choose every block,
-assignment, and financial assumption. The application projects “If I follow this plan,
-what happens?” without recommending a strategy.
+Milestone 5 adds a source-pinned individual player contribution primitive to the existing
+CHPP import, manual training simulator, and plan-bound finance scenarios. Managers can
+compare one player's current and projected raw seven-sector contribution for a chosen
+position and order. This is not a displayed team rating or lineup recommendation.
 
 Milestones 1 through 3 provide CHPP senior-player ingestion, immutable factual snapshots, a verified standalone training engine, and a persistent manual training-cycle simulator. Managers choose every block and assignment; the application projects the question “If I follow this plan, what happens?” without recommending a strategy.
 
@@ -20,6 +20,7 @@ backend/
   app/wage/            Explicitly approximate wage domain
   app/finance/         Framework-independent cash-flow projection domain
   app/attendance/      Table-driven seat demand and gate-revenue domain
+  app/contribution/    Individual seven-sector contribution domain
   fixtures/chpp/       Fictional CHPP XML used in mock mode
   tests/               Backend, migration, and training unit tests
 frontend/
@@ -30,6 +31,7 @@ docs/training-simulator.md Manual-plan semantics and capacity assumptions
 docs/wage-engine.md     Wage sources, approximation, and uncertainty
 docs/finance-projection.md Finance facts, assumptions, and projection semantics
 docs/attendance-model.md  Attendance tables, weather uncertainty, and revenue sharing
+docs/player-contribution-engine.md Individual contribution formula and source audit
 docs/chpp-player-fields.md CHPP field verification and storage ownership
 ```
 
@@ -100,6 +102,18 @@ explicitly labeled low-confidence estimates because no complete current official
 formula is available. Read `docs/wage-engine.md` before using them for decisions. Match
 attendance, transfer activity, and post-boundary sponsor income are not invented.
 
+## Individual player contribution
+
+In a plan, choose one player, position, side, legal individual order, and weather
+assumption. **Calculate contribution** compares the current factual snapshot with projected
+skills after every manual training block. Results are raw match-average contributions to
+midfield and the six defense/attack sectors; factual modifiers are held constant.
+
+The model is pinned to an audited Hattrick Organizer revision and labeled as a community
+estimate. It does not combine a lineup, calculate displayed team sectors, evaluate tactics,
+or recommend a player/position. See `docs/player-contribution-engine.md` before using its
+numbers for decisions.
+
 ## Live CHPP configuration
 
 Copy `backend/.env.example` to `backend/.env`, set `CHPP_MODE=live`, and provide credentials for an approved CHPP application. Never commit that file or credential values.
@@ -134,6 +148,7 @@ pnpm build
 - `PUT /api/training-plans/{id}/blocks/order` - reorder every block deterministically.
 - `PUT /api/training-plans/{id}/blocks/{block}/assignments` - replace planned positional exposure.
 - `POST /api/training-plans/{id}/simulate` - run the hypothetical week-by-week projection; add `?detailed=true` for weekly output.
+- `POST /api/training-plans/{id}/players/{player_id}/contributions` - compare one player's current and projected raw sector contributions.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
 - `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.
