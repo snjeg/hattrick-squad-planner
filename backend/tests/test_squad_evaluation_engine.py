@@ -3,7 +3,9 @@ from dataclasses import replace
 import pytest
 
 from app.contribution.types import MatchWeather, PlayerMatchState, PositionRole
+from app.squad_evaluation import engine as evaluation_engine
 from app.squad_evaluation.engine import COMPOSITE_WEIGHTS, evaluate_squad
+from app.squad_evaluation.formations import lineup_templates
 from app.squad_evaluation.types import (
     EvaluationProfile,
     SearchConfiguration,
@@ -101,6 +103,41 @@ def balanced_result():  # type: ignore[no-untyped-def]
     )
 
 
+@pytest.fixture(scope="module")
+def profile_result():  # type: ignore[no-untyped-def]
+    return evaluate_squad(
+        SquadState(
+            members=_members(),
+            context=CONTEXT,
+            profiles=(EvaluationProfile.POSSESSION, EvaluationProfile.ATTACKING),
+            search=FAST_SEARCH,
+        )
+    )
+
+
+@pytest.fixture(scope="module")
+def original_balanced_candidate_pool():  # type: ignore[no-untyped-def]
+    state = SquadState(
+        members=_members(),
+        context=CONTEXT,
+        profiles=(EvaluationProfile.BALANCED,),
+        search=FAST_SEARCH,
+    )
+    members = evaluation_engine._active_members(state)
+    cache = {}
+    lineups = []
+    for _, slots in lineup_templates():
+        found, _ = evaluation_engine._search_template(
+            members,
+            slots,
+            EvaluationProfile.BALANCED,
+            state,
+            cache,
+        )
+        lineups.extend(found)
+    return tuple(lineups)
+
+
 def test_evaluates_realistic_16_and_20_player_squads() -> None:
     for count in (16, 20):
         result = evaluate_squad(
@@ -114,17 +151,9 @@ def test_evaluates_realistic_16_and_20_player_squads() -> None:
         assert len(result.best_lineup_by_profile[EvaluationProfile.BALANCED].lineup) == 11
 
 
-def test_profiles_can_rank_different_lineups() -> None:
-    result = evaluate_squad(
-        SquadState(
-            _members(),
-            CONTEXT,
-            (EvaluationProfile.POSSESSION, EvaluationProfile.ATTACKING),
-            FAST_SEARCH,
-        )
-    )
-    possession = result.best_lineup_by_profile[EvaluationProfile.POSSESSION]
-    attacking = result.best_lineup_by_profile[EvaluationProfile.ATTACKING]
+def test_profiles_can_rank_different_lineups(profile_result) -> None:  # type: ignore[no-untyped-def]
+    possession = profile_result.best_lineup_by_profile[EvaluationProfile.POSSESSION]
+    attacking = profile_result.best_lineup_by_profile[EvaluationProfile.ATTACKING]
     assert possession.profile is EvaluationProfile.POSSESSION
     assert attacking.profile is EvaluationProfile.ATTACKING
     assert (
@@ -132,6 +161,56 @@ def test_profiles_can_rank_different_lineups() -> None:
         != {player.player_id for player in attacking.lineup}
         or possession.team_rating.formation != attacking.team_rating.formation
     )
+
+
+def test_replacement_research_can_change_formation(balanced_result) -> None:  # type: ignore[no-untyped-def]
+    baseline = balanced_result.best_lineup_by_profile[EvaluationProfile.BALANCED]
+    replacement = next(
+        item for item in balanced_result.replacement_sensitivity if item.player_id == 17
+    )
+    assert baseline.team_rating.formation == "3-4-3"
+    assert replacement.replacement_lineup is not None
+    assert replacement.replacement_lineup.team_rating.formation == "4-4-2"
+    assert replacement.expanded_partial_lineups > 0
+    assert replacement.evaluated_complete_lineups > 0
+
+
+def test_replacement_research_can_reassign_multiple_positions_and_orders(
+    profile_result,
+) -> None:  # type: ignore[no-untyped-def]
+    baseline = profile_result.best_lineup_by_profile[EvaluationProfile.POSSESSION]
+    replacement = next(
+        item for item in profile_result.replacement_sensitivity if item.player_id == 9
+    )
+    assert replacement.replacement_lineup is not None
+    baseline_assignments = {
+        player.player_id: (player.position.role, player.order)
+        for player in baseline.lineup
+    }
+    changed = [
+        player.player_id
+        for player in replacement.replacement_lineup.lineup
+        if player.player_id in baseline_assignments
+        and baseline_assignments[player.player_id]
+        != (player.position.role, player.order)
+    ]
+    assert len(changed) >= 2
+
+
+def test_replacement_research_beats_filtering_the_original_candidate_pool(
+    balanced_result,
+    original_balanced_candidate_pool,
+) -> None:  # type: ignore[no-untyped-def]
+    replacement = next(
+        item for item in balanced_result.replacement_sensitivity if item.player_id == 18
+    )
+    old_pool_best = max(
+        lineup.utility.total
+        for lineup in original_balanced_candidate_pool
+        if all(player.player_id != 18 for player in lineup.lineup)
+    )
+    assert replacement.replacement_utility is not None
+    assert replacement.replacement_utility > old_pool_best + 0.05
 
 
 def test_all_supported_formations_compete_without_352_bias(balanced_result) -> None:  # type: ignore[no-untyped-def]
@@ -353,4 +432,13 @@ def test_search_diagnostics_are_bounded_not_claimed_exhaustive(balanced_result) 
         diagnostics.template_count * FAST_SEARCH.evaluated_per_template
     )
     assert diagnostics.retained_distinct_lineups <= FAST_SEARCH.retained_per_profile
+    assert diagnostics.replacement_searches == 11
+    assert diagnostics.replacement_expanded_partial_lineups <= (
+        diagnostics.replacement_searches * diagnostics.theoretical_expansion_bound
+    )
+    assert diagnostics.replacement_evaluated_complete_lineups <= (
+        diagnostics.replacement_searches
+        * diagnostics.template_count
+        * FAST_SEARCH.evaluated_per_template
+    )
     assert diagnostics.exhaustive is False

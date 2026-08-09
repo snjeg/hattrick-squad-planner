@@ -193,6 +193,9 @@ export interface SquadEvaluation {
     baseline_utility: number
     replacement_utility: number | null
     replacement_drop: number
+    replacement_lineup: GeneratedLineup | null
+    expanded_partial_lineups: number
+    evaluated_complete_lineups: number
   }>
   role_depth: Array<{
     role: Position
@@ -240,6 +243,9 @@ export interface SquadEvaluation {
     retained_distinct_lineups: number
     template_count: number
     theoretical_expansion_bound: number
+    replacement_searches: number
+    replacement_expanded_partial_lineups: number
+    replacement_evaluated_complete_lineups: number
     exhaustive: boolean
   }
   model_version: string

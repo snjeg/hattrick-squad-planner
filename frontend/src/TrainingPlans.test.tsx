@@ -231,6 +231,9 @@ const squadEvaluation = {
         baseline_utility: 0.72,
         replacement_utility: 0.69,
         replacement_drop: 0.03,
+        replacement_lineup: generatedLineup,
+        expanded_partial_lineups: 4000,
+        evaluated_complete_lineups: 800,
       })),
       role_depth: [],
       rotation_quality: {
@@ -257,7 +260,9 @@ const squadEvaluation = {
       diagnostics: {
         expanded_partial_lineups: 4800, evaluated_complete_lineups: 900,
         retained_distinct_lineups: 10, template_count: 91,
-        theoretical_expansion_bound: 100000, exhaustive: false,
+        theoretical_expansion_bound: 100000, replacement_searches: 11,
+        replacement_expanded_partial_lineups: 44000,
+        replacement_evaluated_complete_lineups: 8800, exhaustive: false,
       },
       model_version: 'squad-evaluation-v1',
       warnings: ['Best found; global optimality is not claimed.'],

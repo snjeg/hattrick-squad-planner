@@ -449,6 +449,9 @@ class ReplacementSensitivityResponse(BaseModel):
     baseline_utility: float
     replacement_utility: float | None
     replacement_drop: float
+    replacement_lineup: GeneratedLineupResponse | None
+    expanded_partial_lineups: int
+    evaluated_complete_lineups: int
 
 
 class RoleDepthEntryResponse(BaseModel):
@@ -507,6 +510,9 @@ class SearchDiagnosticsResponse(BaseModel):
     retained_distinct_lineups: int
     template_count: int
     theoretical_expansion_bound: int
+    replacement_searches: int
+    replacement_expanded_partial_lineups: int
+    replacement_evaluated_complete_lineups: int
     exhaustive: bool
 
 

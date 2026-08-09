@@ -16,9 +16,9 @@ identical best formation would obscure depth. A bounded beam is locally interact
 traceable for 20–25 players without pretending to be the future global optimizer.
 
 **Consequence:** Results are labeled “best found,” left/right mirror pruning relies on symmetric
-v1 profile weights, and replacement sensitivity is limited to one unavailable player within
-the evaluated pool. Transfer, finance, acquisition, and automatic training decisions remain
-outside this domain.
+v1 profile weights, and replacement sensitivity performs an equivalent bounded re-search for
+one unavailable starter at a time. Transfer, finance, acquisition, and automatic training
+decisions remain outside this domain.
 
 ---
 

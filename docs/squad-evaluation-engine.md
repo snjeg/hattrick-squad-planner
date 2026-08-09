@@ -87,11 +87,19 @@ Replacement sensitivity is evaluated for each player in the primary profile's to
 replacement_drop = peak utility - best evaluated utility without that player
 ```
 
-Only one unavailable player is modeled. The replacement comes from the evaluated candidate
-pool, not an injury probability or multiple-absence simulation. Positional depth ranks a
-player by the best retained whole-lineup utility in which he actually occupied goalkeeper,
-wingback, central defense, inner midfield, winger, or forward. It is not an isolated player
-rating.
+Only one unavailable player is modeled. For each starter, the engine removes that member and
+runs the same bounded search again with the same primary profile, team context, formations,
+and search configuration. It retains only the best found replacement lineup, so it avoids
+recomputing unrelated squad metrics while allowing the formation, positions, and orders to
+change. The API returns that lineup and the replacement search expansion/evaluation counts.
+Both baseline and replacement remain bounded-search results rather than proven global optima.
+Because beam pruning can follow a different path after exclusion, a negative drop is possible
+in principle; it is reported rather than clamped and indicates that search limits should be
+raised before interpreting that case.
+
+Positional depth ranks a player by the best retained whole-lineup utility in which he actually
+occupied goalkeeper, wingback, central defense, inner midfield, winger, or forward. It is not
+an isolated player rating.
 
 Rotation quality reports peak utility, the mean utility of retained distinct lineups, and
 the mean best one-starter-excluded utility. Top-K participation and useful position/order
@@ -144,7 +152,8 @@ inspection. It displays bounded-search diagnostics and uncertainty language.
 
 - Search is bounded and deterministic, not a guaranteed global optimum.
 - Left/right mirror pruning is valid only while profile weights and context remain symmetric.
-- Replacement sensitivity uses one-player absence and the evaluated pool.
+- Replacement sensitivity models one-player absence only; each result is a fresh equivalent
+  bounded search rather than a global optimum.
 - Match-average stamina, formation confusion, injuries, suspensions, opponent-specific
   planning, chance distribution, tactic strength, and result simulation remain excluded.
 - Role labels are one-checkpoint inputs; role-transition scheduling is future work.

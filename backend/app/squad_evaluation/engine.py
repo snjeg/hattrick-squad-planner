@@ -293,28 +293,71 @@ def _retain_distinct(
 
 
 def _replacement_sensitivity(
-    best: EvaluatedLineup, candidate_pool: list[EvaluatedLineup]
+    best: EvaluatedLineup,
+    members: tuple[SquadMember, ...],
+    profile: EvaluationProfile,
+    state: SquadState,
+    cache: dict[tuple[int, PositionSlot, IndividualOrder], PreparedLineupPlayer | None],
+    templates: tuple[tuple[str, tuple[PositionSlot, ...]], ...],
 ) -> tuple[ReplacementSensitivity, ...]:
     baseline = best.utility.total
     results: list[ReplacementSensitivity] = []
     for player in sorted(best.lineup, key=lambda item: item.player_id):
-        replacements = [
-            lineup.utility.total
-            for lineup in candidate_pool
-            if all(item.player_id != player.player_id for item in lineup.lineup)
-        ]
-        replacement = max(replacements, default=None)
+        replacement, expanded, evaluated = _search_best_lineup(
+            tuple(member for member in members if member.player_id != player.player_id),
+            profile,
+            state,
+            cache,
+            templates,
+        )
+        replacement_utility = replacement.utility.total if replacement is not None else None
         results.append(
             ReplacementSensitivity(
                 player_id=player.player_id,
                 baseline_utility=baseline,
-                replacement_utility=replacement,
+                replacement_utility=replacement_utility,
                 replacement_drop=(
-                    baseline if replacement is None else max(0.0, baseline - replacement)
+                    baseline
+                    if replacement_utility is None
+                    else baseline - replacement_utility
                 ),
+                replacement_lineup=replacement,
+                expanded_partial_lineups=expanded,
+                evaluated_complete_lineups=evaluated,
             )
         )
     return tuple(results)
+
+
+def _search_best_lineup(
+    members: tuple[SquadMember, ...],
+    profile: EvaluationProfile,
+    state: SquadState,
+    cache: dict[tuple[int, PositionSlot, IndividualOrder], PreparedLineupPlayer | None],
+    templates: tuple[tuple[str, tuple[PositionSlot, ...]], ...],
+) -> tuple[EvaluatedLineup | None, int, int]:
+    """Run the same bounded lineup search while retaining only its best result."""
+    if len(members) < 11:
+        return None, 0, 0
+    best: EvaluatedLineup | None = None
+    expanded = 0
+    evaluated = 0
+    for _, slots in templates:
+        lineups, template_expanded = _search_template(
+            members, slots, profile, state, cache
+        )
+        expanded += template_expanded
+        evaluated += len(lineups)
+        for lineup in lineups:
+            if best is None or (
+                -lineup.utility.total,
+                _lineup_signature(lineup.lineup),
+            ) < (
+                -best.utility.total,
+                _lineup_signature(best.lineup),
+            ):
+                best = lineup
+    return best, expanded, evaluated
 
 
 def _role_depth(
@@ -473,7 +516,14 @@ def evaluate_squad(state: SquadState) -> SquadEvaluationResult:
         )
     )
 
-    sensitivity = _replacement_sensitivity(best, primary_pool)
+    sensitivity = _replacement_sensitivity(
+        best,
+        members,
+        primary_profile,
+        state,
+        cache,
+        templates,
+    )
     top_primary = retained[primary_profile]
     distinct_average = sum(item.utility.total for item in top_primary) / len(top_primary)
     replacement_values = [
@@ -511,7 +561,15 @@ def evaluate_squad(state: SquadState) -> SquadEvaluationResult:
                 top_lineup_frequency=len(appearances) / len(top_primary),
                 replacement_drop=sensitivity_by_player.get(
                     member.player_id,
-                    ReplacementSensitivity(member.player_id, best.utility.total, None, 0.0),
+                    ReplacementSensitivity(
+                        member.player_id,
+                        best.utility.total,
+                        None,
+                        0.0,
+                        None,
+                        0,
+                        0,
+                    ),
                 ).replacement_drop,
                 useful_assignments=tuple(
                     sorted(
@@ -546,8 +604,9 @@ def evaluate_squad(state: SquadState) -> SquadEvaluationResult:
     warnings = (
         "Best found uses bounded deterministic beam search; global optimality is not claimed.",
         "Utility profiles are application-level comparison models, not official Hattrick ratings.",
-        "Replacement sensitivity uses the evaluated candidate pool and one-player "
-        "unavailability only.",
+        "Replacement sensitivity runs an equivalent bounded search for each unavailable "
+        "starter; global optimality is not claimed and negative drops can expose beam "
+        "instability.",
         "Only simulator-projected trainable skills change at future checkpoints; form, "
         "stamina, experience, loyalty, mother-club status, and specialty remain fixed.",
     )
@@ -571,6 +630,13 @@ def evaluate_squad(state: SquadState) -> SquadEvaluationResult:
             retained_distinct_lineups=sum(len(value) for value in retained.values()),
             template_count=len(templates),
             theoretical_expansion_bound=theoretical,
+            replacement_searches=len(sensitivity),
+            replacement_expanded_partial_lineups=sum(
+                item.expanded_partial_lineups for item in sensitivity
+            ),
+            replacement_evaluated_complete_lineups=sum(
+                item.evaluated_complete_lineups for item in sensitivity
+            ),
         ),
         model_version=state.model_version,
         warnings=warnings,

@@ -121,6 +121,13 @@ def _evaluation_response(result: SquadEvaluationResult) -> SquadEvaluationRespon
                 baseline_utility=item.baseline_utility,
                 replacement_utility=item.replacement_utility,
                 replacement_drop=item.replacement_drop,
+                replacement_lineup=(
+                    _generated_lineup_response(item.replacement_lineup)
+                    if item.replacement_lineup is not None
+                    else None
+                ),
+                expanded_partial_lineups=item.expanded_partial_lineups,
+                evaluated_complete_lineups=item.evaluated_complete_lineups,
             )
             for item in result.replacement_sensitivity
         ],
@@ -185,6 +192,13 @@ def _evaluation_response(result: SquadEvaluationResult) -> SquadEvaluationRespon
             retained_distinct_lineups=diagnostics.retained_distinct_lineups,
             template_count=diagnostics.template_count,
             theoretical_expansion_bound=diagnostics.theoretical_expansion_bound,
+            replacement_searches=diagnostics.replacement_searches,
+            replacement_expanded_partial_lineups=(
+                diagnostics.replacement_expanded_partial_lineups
+            ),
+            replacement_evaluated_complete_lineups=(
+                diagnostics.replacement_evaluated_complete_lineups
+            ),
             exhaustive=diagnostics.exhaustive,
         ),
         model_version=result.model_version,

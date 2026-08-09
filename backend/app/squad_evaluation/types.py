@@ -110,6 +110,9 @@ class ReplacementSensitivity:
     baseline_utility: float
     replacement_utility: float | None
     replacement_drop: float
+    replacement_lineup: EvaluatedLineup | None
+    expanded_partial_lineups: int
+    evaluated_complete_lineups: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +178,9 @@ class SearchDiagnostics:
     retained_distinct_lineups: int
     template_count: int
     theoretical_expansion_bound: int
+    replacement_searches: int
+    replacement_expanded_partial_lineups: int
+    replacement_evaluated_complete_lineups: int
     exhaustive: bool = False
 
 
