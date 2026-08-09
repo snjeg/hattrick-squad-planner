@@ -67,12 +67,16 @@ from app.squad_evaluation_services import (
     _context,
     _evaluation_response,
     _search,
-    _training_participation,
 )
 from app.training.age import HattrickAge
 from app.training.coefficients import definition_for
-from app.training.eligibility import PositionMinutes
-from app.training.types import CoachLevel, Skill, TrainingType
+from app.training.eligibility import (
+    PositionMinutes,
+    TrainingExposure,
+    meaningful_capacity_units,
+    resolve_training_exposure,
+)
+from app.training.types import CoachLevel, Position, Skill, TrainingType
 from app.wage.projection import WagePlayerMetadata, project_wages
 
 
@@ -120,11 +124,29 @@ def _capacity(block: TrainingBlock | None) -> int:
     return sum(WEEKLY_POSITION_MINUTES[position] // 90 for position in positions)
 
 
+def _participation_for_exposure(
+    exposure: TrainingExposure,
+) -> TrainingParticipation:
+    active = [
+        status
+        for status, minutes in (
+            (TrainingParticipation.FULL, exposure.full_minutes),
+            (TrainingParticipation.PARTIAL, exposure.partial_minutes),
+            (TrainingParticipation.OSMOSIS, exposure.osmosis_minutes),
+            (TrainingParticipation.BONUS, exposure.bonus_minutes),
+        )
+        if minutes > 0
+    ]
+    if not active:
+        return TrainingParticipation.NONE
+    return active[0] if len(active) == 1 else TrainingParticipation.MIXED
+
+
 def _existing_training(
     player_id: int, block: TrainingBlock | None
-) -> TrainingParticipation:
+) -> tuple[TrainingParticipation, TrainingExposure]:
     if block is None:
-        return TrainingParticipation.NONE
+        return TrainingParticipation.NONE, TrainingExposure()
     assignment = next(
         (
             item
@@ -133,7 +155,17 @@ def _existing_training(
         ),
         None,
     )
-    return _training_participation(assignment, block.training_type)
+    if assignment is None:
+        return TrainingParticipation.NONE, TrainingExposure()
+    exposure = resolve_training_exposure(
+        TrainingType(block.training_type),
+        tuple(
+            PositionMinutes(Position(item.position), item.minutes)
+            for item in assignment.appearances
+        ),
+        is_set_piece_taker=assignment.is_set_piece_taker,
+    )
+    return _participation_for_exposure(exposure), exposure
 
 
 def _match_state_for_hypothetical(
@@ -297,9 +329,8 @@ def _hypothetical_profile(
             assignments.get(next_training_block.id) if next_training_block is not None else None
         )
         participation = TrainingParticipation.NONE
+        exposure = TrainingExposure()
         if assignment is not None and next_training_block is not None:
-            from app.training.eligibility import resolve_training_exposure
-
             exposure = resolve_training_exposure(
                 TrainingType(next_training_block.training_type),
                 tuple(
@@ -308,19 +339,7 @@ def _hypothetical_profile(
                 ),
                 is_set_piece_taker=assignment.is_set_piece_taker,
             )
-            active = [
-                status
-                for status, minutes in (
-                    (TrainingParticipation.FULL, exposure.full_minutes),
-                    (TrainingParticipation.PARTIAL, exposure.partial_minutes),
-                    (TrainingParticipation.OSMOSIS, exposure.osmosis_minutes),
-                    (TrainingParticipation.BONUS, exposure.bonus_minutes),
-                )
-                if minutes > 0
-            ]
-            participation = (
-                active[0] if len(active) == 1 else TrainingParticipation.MIXED
-            ) if active else TrainingParticipation.NONE
+            participation = _participation_for_exposure(exposure)
         weekly_wage = (
             checkpoint_wages.get(block_id, wage.players[0].final_wage)
             if block_id is not None
@@ -352,6 +371,7 @@ def _hypothetical_profile(
             ),
             preferred_positions=frozenset(payload.preferred_positions),
             training_participation=participation,
+            training_exposure=exposure,
             nationality=payload.nationality,
             is_foreign=payload.is_foreign,
             source_quality="assumption",
@@ -507,6 +527,9 @@ def _base_checkpoints(
                 )
                 wage_source = WageSource.MODEL_ESTIMATE
             member = requested[player_id]
+            participation, exposure = _existing_training(
+                player_id, next_training_block
+            )
             players.append(
                 ScenarioPlayer(
                     player_key=f"player:{player_id}",
@@ -524,9 +547,8 @@ def _base_checkpoints(
                         else None
                     ),
                     preferred_positions=frozenset(member.preferred_positions),
-                    training_participation=_existing_training(
-                        player_id, next_training_block
-                    ),
+                    training_participation=participation,
+                    training_exposure=exposure,
                     nationality=plan_player.player.nationality_id,
                     is_foreign=bool(plan_player.snapshot.is_foreign),
                     notes=member.notes,
@@ -652,6 +674,9 @@ def _checkpoint_response(item: ScenarioCheckpointResult) -> RosterScenarioCheckp
                 weekly_wage=value.weekly_wage,
                 wage_source=value.wage_source,
                 training_participation=value.training_participation,
+                meaningful_capacity_consumption=meaningful_capacity_units(
+                    value.training_exposure
+                ),
                 is_foreign=value.is_foreign,
             )
             for value in item.roster_players
@@ -728,6 +753,17 @@ def evaluate_plan_roster_scenarios(
 
 def _supplied_player(payload: SuppliedRosterPlayerRequest) -> ScenarioPlayer:
     state = PlayerMatchState(**payload.state.model_dump())
+    exposure = TrainingExposure(
+        full_minutes=payload.full_training_minutes,
+        partial_minutes=payload.partial_training_minutes,
+        osmosis_minutes=payload.osmosis_training_minutes,
+        bonus_minutes=payload.bonus_training_minutes,
+    )
+    participation = _participation_for_exposure(exposure)
+    if participation is not payload.training_participation:
+        raise PlanValidationError(
+            "Supplied training participation must match its exposure minutes"
+        )
     return ScenarioPlayer(
         player_key=payload.player_key,
         evaluation_id=payload.evaluation_id,
@@ -753,7 +789,8 @@ def _supplied_player(payload: SuppliedRosterPlayerRequest) -> ScenarioPlayer:
             else None
         ),
         preferred_positions=frozenset(payload.preferred_positions),
-        training_participation=payload.training_participation,
+        training_participation=participation,
+        training_exposure=exposure,
         nationality=payload.nationality,
         is_foreign=payload.is_foreign,
         source_quality=payload.source_quality,

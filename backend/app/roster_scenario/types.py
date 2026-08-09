@@ -12,6 +12,7 @@ from app.squad_evaluation.types import (
 )
 from app.team_rating.types import TeamRatingContext
 from app.training.age import HattrickAge
+from app.training.eligibility import TrainingExposure
 from app.training.types import Skill
 
 ROSTER_SCENARIO_MODEL_VERSION = "roster-scenario-v1"
@@ -107,6 +108,7 @@ class ScenarioPlayer:
     allowed_positions: frozenset[PositionRole] | None = None
     preferred_positions: frozenset[PositionRole] = frozenset()
     training_participation: TrainingParticipation = TrainingParticipation.NONE
+    training_exposure: TrainingExposure = TrainingExposure()
     nationality: int | None = None
     is_foreign: bool = False
     source_quality: str = "current"
@@ -237,7 +239,8 @@ class FinanceSnapshot:
 class TrainingCapacitySnapshot:
     meaningful_capacity: int
     beneficiaries: int
-    unused_capacity: int
+    consumed_capacity: float
+    unused_capacity: float
     full: int
     partial: int
     osmosis: int
@@ -263,7 +266,7 @@ class ScenarioMetrics:
     cash: PriceCaseAmounts
     roster_size: int
     training_beneficiaries: int
-    unused_training_capacity: int
+    unused_training_capacity: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,7 +280,7 @@ class ScenarioDelta:
     cash: PriceCaseAmounts
     roster_size: int
     training_beneficiaries: int
-    unused_training_capacity: int
+    unused_training_capacity: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,7 +291,7 @@ class TransitionImpact:
     competitive_delta: float | None
     replacement_drop: float | None
     role_depth_delta: int | None
-    training_slot_delta: int
+    training_slot_delta: float
     weekly_wage_delta: int
     capital_delta: PriceCaseAmounts
     lineup_participation: bool | None

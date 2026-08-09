@@ -301,7 +301,8 @@ const rosterScenarioEvaluation = {
         cumulative_transfer_spend: { low: 0, base: 0, high: 0 },
       },
       training: {
-        meaningful_capacity: 6, beneficiaries: 0, unused_capacity: 6,
+        meaningful_capacity: 6, beneficiaries: 0, consumed_capacity: 0,
+        unused_capacity: 6,
         full: 0, partial: 0, osmosis: 0, bonus: 0, mixed: 0,
       },
       metrics: {

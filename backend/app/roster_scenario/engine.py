@@ -13,6 +13,7 @@ from app.squad_evaluation.types import (
     SquadState,
     TrainingParticipation,
 )
+from app.training.eligibility import meaningful_capacity_units
 
 from .types import (
     AppliedTransition,
@@ -79,6 +80,10 @@ def _validate_request(request: RosterScenarioRequest) -> tuple[BaseCheckpointSta
     scenario_ids = [scenario.scenario_id for scenario in request.scenarios]
     if len(set(scenario_ids)) != len(scenario_ids):
         raise RosterScenarioValidationError("Scenario IDs must be unique")
+    if "baseline" in scenario_ids:
+        raise RosterScenarioValidationError(
+            "Scenario ID 'baseline' is reserved for the synthetic baseline"
+        )
     return checkpoints
 
 
@@ -239,31 +244,26 @@ def _coverage_gaps(
 def _training_snapshot(
     frame: BaseCheckpointState,
     roster: Mapping[str, ScenarioPlayer],
-    evaluation: SquadEvaluationResult | None,
 ) -> TrainingCapacitySnapshot:
-    if evaluation is None:
-        counts = Counter(player.training_participation for player in roster.values())
-        beneficiaries = sum(
-            status is not TrainingParticipation.NONE
-            for status in (player.training_participation for player in roster.values())
-        )
-    else:
-        cohort = evaluation.training_cohort
-        counts = Counter(
-            {
-                TrainingParticipation.FULL: cohort.full,
-                TrainingParticipation.PARTIAL: cohort.partial,
-                TrainingParticipation.OSMOSIS: cohort.osmosis,
-                TrainingParticipation.BONUS: cohort.bonus,
-                TrainingParticipation.MIXED: cohort.mixed,
-            }
-        )
-        beneficiaries = cohort.training_beneficiaries
+    active = tuple(
+        player
+        for player in roster.values()
+        if player.planning_role is not SquadPlanningRole.EXIT
+    )
+    counts = Counter(player.training_participation for player in active)
+    beneficiaries = sum(
+        player.training_participation is not TrainingParticipation.NONE
+        for player in active
+    )
+    consumed = sum(
+        meaningful_capacity_units(player.training_exposure) for player in active
+    )
     capacity = frame.checkpoint.meaningful_training_capacity
     return TrainingCapacitySnapshot(
         meaningful_capacity=capacity,
         beneficiaries=beneficiaries,
-        unused_capacity=max(0, capacity - beneficiaries),
+        consumed_capacity=consumed,
+        unused_capacity=max(0.0, capacity - consumed),
         full=counts[TrainingParticipation.FULL],
         partial=counts[TrainingParticipation.PARTIAL],
         osmosis=counts[TrainingParticipation.OSMOSIS],
@@ -524,7 +524,7 @@ def _impact(
     evidence = (
         "Competitive change is the decomposed squad-score delta, not a recommendation.",
         "Capital values are manual low/base/high assumptions.",
-        "Training effect uses existing aggregate participation/capacity semantics.",
+        "Training effect uses capped full/partial exposure in 90-minute slot units.",
     )
     return TransitionImpact(
         transition_id=applied.transition_id,
@@ -610,7 +610,7 @@ def _evaluate_one(
 
         for transition in by_checkpoint.get(frame.checkpoint.checkpoint_id, []):
             before_evaluation = _evaluate(request, roster, cache)
-            before_training = _training_snapshot(frame, roster, before_evaluation)
+            before_training = _training_snapshot(frame, roster)
             applied, before_player, after_player = _apply_transition(
                 transition, frame.checkpoint.checkpoint_id, roster, hypothetical
             )
@@ -622,7 +622,7 @@ def _evaluate_one(
                 if amount < 0:
                     cumulative_spend[price_case] += -amount
             after_evaluation = _evaluate(request, roster, cache)
-            after_training = _training_snapshot(frame, roster, after_evaluation)
+            after_training = _training_snapshot(frame, roster)
             impacts.append(
                 _impact(
                     applied,
@@ -638,7 +638,7 @@ def _evaluate_one(
             applied_items.append(applied)
 
         evaluation = _evaluate(request, roster, cache)
-        training = _training_snapshot(frame, roster, evaluation)
+        training = _training_snapshot(frame, roster)
         weekly_wages = sum(player.weekly_wage for player in roster.values())
         closing = _amounts(cash)
         finance = FinanceSnapshot(

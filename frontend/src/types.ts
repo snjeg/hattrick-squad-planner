@@ -578,6 +578,7 @@ export interface RosterScenarioCheckpoint {
     weekly_wage: number
     wage_source: 'factual' | 'supplied_assumption' | 'model_estimate'
     training_participation: TrainingParticipation
+    meaningful_capacity_consumption: number
     is_foreign: boolean
   }>
   transitions_applied: Array<{
@@ -600,6 +601,7 @@ export interface RosterScenarioCheckpoint {
   training: {
     meaningful_capacity: number
     beneficiaries: number
+    consumed_capacity: number
     unused_capacity: number
     full: number
     partial: number

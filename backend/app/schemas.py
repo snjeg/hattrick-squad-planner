@@ -782,6 +782,10 @@ class SuppliedRosterPlayerRequest(BaseModel):
     allowed_positions: list[PositionRole] | None = None
     preferred_positions: list[PositionRole] = Field(default_factory=list)
     training_participation: TrainingParticipation = TrainingParticipation.NONE
+    full_training_minutes: int = Field(default=0, ge=0)
+    partial_training_minutes: int = Field(default=0, ge=0)
+    osmosis_training_minutes: int = Field(default=0, ge=0)
+    bonus_training_minutes: int = Field(default=0, ge=0)
     nationality: int | None = Field(default=None, ge=1)
     is_foreign: bool = False
     source_quality: str = Field(default="supplied", max_length=80)
@@ -875,7 +879,8 @@ class RosterFinanceSnapshotResponse(BaseModel):
 class TrainingCapacitySnapshotResponse(BaseModel):
     meaningful_capacity: int
     beneficiaries: int
-    unused_capacity: int
+    consumed_capacity: float
+    unused_capacity: float
     full: int
     partial: int
     osmosis: int
@@ -899,7 +904,7 @@ class ScenarioMetricsResponse(BaseModel):
     cash: PriceCaseAmountsResponse
     roster_size: int
     training_beneficiaries: int
-    unused_training_capacity: int
+    unused_training_capacity: float
 
 
 class ScenarioDeltaResponse(ScenarioMetricsResponse):
@@ -913,7 +918,7 @@ class TransitionImpactResponse(BaseModel):
     competitive_delta: float | None
     replacement_drop: float | None
     role_depth_delta: int | None
-    training_slot_delta: int
+    training_slot_delta: float
     weekly_wage_delta: int
     capital_delta: PriceCaseAmountsResponse
     lineup_participation: bool | None
@@ -933,6 +938,7 @@ class ScenarioRosterPlayerResponse(BaseModel):
     weekly_wage: int
     wage_source: WageSource
     training_participation: TrainingParticipation
+    meaningful_capacity_consumption: float
     is_foreign: bool
 
 

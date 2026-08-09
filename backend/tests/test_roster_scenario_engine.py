@@ -48,6 +48,7 @@ from app.team_rating.types import (
     TeamTactic,
 )
 from app.training.age import HattrickAge
+from app.training.eligibility import TrainingExposure
 from app.training.types import Skill
 
 CONTEXT = TeamRatingContext(
@@ -98,8 +99,16 @@ def _player(
     participation: TrainingParticipation = TrainingParticipation.NONE,
     role: SquadPlanningRole = SquadPlanningRole.ROTATION,
     source: PlayerSource = PlayerSource.FACTUAL,
+    exposure: TrainingExposure | None = None,
 ) -> ScenarioPlayer:
     state = _state(player_id)
+    if exposure is None:
+        exposure = {
+            TrainingParticipation.FULL: TrainingExposure(full_minutes=90),
+            TrainingParticipation.PARTIAL: TrainingExposure(partial_minutes=90),
+            TrainingParticipation.OSMOSIS: TrainingExposure(osmosis_minutes=90),
+            TrainingParticipation.BONUS: TrainingExposure(bonus_minutes=90),
+        }.get(participation, TrainingExposure())
     return ScenarioPlayer(
         player_key=(f"hyp:p{abs(player_id)}" if player_id < 0 else f"player:{player_id}"),
         evaluation_id=player_id,
@@ -116,6 +125,7 @@ def _player(
         ),
         source=source,
         training_participation=participation,
+        training_exposure=exposure,
     )
 
 
@@ -171,6 +181,21 @@ def _request(*scenarios: RosterScenario) -> RosterScenarioRequest:
             _frame("after_block:1", 1, after, weeks=4, operating=100_000),
             _frame("final", 2, after, weeks=0, capacity=0),
         ),
+        scenarios=scenarios,
+        opening_cash=2_000_000,
+        context=CONTEXT,
+        profiles=(EvaluationProfile.BALANCED,),
+        search=SearchConfiguration(10, 11, 5, 3, 2),
+    )
+
+
+def _single_checkpoint_request(
+    players: tuple[ScenarioPlayer, ...],
+    *scenarios: RosterScenario,
+    capacity: int = 6,
+) -> RosterScenarioRequest:
+    return RosterScenarioRequest(
+        checkpoints=(_frame("current", 0, players, capacity=capacity),),
         scenarios=scenarios,
         opening_cash=2_000_000,
         context=CONTEXT,
@@ -442,6 +467,170 @@ def test_training_capacity_changes_after_eligible_buy() -> None:
     checkpoint = evaluate_roster_scenarios(_request(_buy())).scenarios[0].checkpoints[0]
     assert checkpoint.training.beneficiaries == 7
     assert checkpoint.training.unused_capacity == 0
+
+
+def test_osmosis_beneficiaries_do_not_hide_unused_meaningful_capacity() -> None:
+    players = tuple(
+        _player(
+            player_id,
+            participation=(
+                TrainingParticipation.FULL
+                if player_id <= 4
+                else TrainingParticipation.OSMOSIS
+                if player_id <= 8
+                else TrainingParticipation.NONE
+            ),
+        )
+        for player_id in range(1, 13)
+    )
+    training = evaluate_roster_scenarios(
+        _single_checkpoint_request(players)
+    ).baseline.checkpoints[0].training
+    assert training.beneficiaries == 8
+    assert training.full == 4
+    assert training.osmosis == 4
+    assert training.consumed_capacity == pytest.approx(4)
+    assert training.unused_capacity == pytest.approx(2)
+
+
+@pytest.mark.parametrize(
+    ("participation", "exposure", "expected_unused", "expected_delta"),
+    [
+        (
+            TrainingParticipation.OSMOSIS,
+            TrainingExposure(osmosis_minutes=90),
+            2.0,
+            0.0,
+        ),
+        (
+            TrainingParticipation.FULL,
+            TrainingExposure(full_minutes=90),
+            1.0,
+            -1.0,
+        ),
+        (
+            TrainingParticipation.PARTIAL,
+            TrainingExposure(partial_minutes=90),
+            1.0,
+            -1.0,
+        ),
+        (
+            TrainingParticipation.BONUS,
+            TrainingExposure(bonus_minutes=90),
+            2.0,
+            0.0,
+        ),
+    ],
+)
+def test_hypothetical_buy_consumes_only_full_or_partial_capacity(
+    participation: TrainingParticipation,
+    exposure: TrainingExposure,
+    expected_unused: float,
+    expected_delta: float,
+) -> None:
+    players = tuple(
+        _player(
+            player_id,
+            participation=(
+                TrainingParticipation.FULL
+                if player_id <= 4
+                else TrainingParticipation.NONE
+            ),
+        )
+        for player_id in range(1, 13)
+    )
+    acquired = _player(
+        -1,
+        participation=participation,
+        exposure=exposure,
+        source=PlayerSource.HYPOTHETICAL,
+    )
+    scenario = RosterScenario(
+        "capacity-buy",
+        "Capacity buy",
+        (
+            BuyTransition(
+                "buy-capacity",
+                "current",
+                "hyp:p1",
+                TransferValue(None, 1_000, None),
+            ),
+        ),
+        (HypotheticalPlayer("hyp:p1", acquired.name, {"current": acquired}),),
+    )
+    checkpoint = evaluate_roster_scenarios(
+        _single_checkpoint_request(players, scenario)
+    ).scenarios[0].checkpoints[0]
+    assert checkpoint.training.unused_capacity == pytest.approx(expected_unused)
+    assert checkpoint.transition_impacts[0].training_slot_delta == pytest.approx(
+        expected_delta
+    )
+
+
+def test_osmosis_only_sale_does_not_create_unused_meaningful_capacity() -> None:
+    players = tuple(
+        _player(
+            player_id,
+            participation=(
+                TrainingParticipation.FULL
+                if player_id <= 4
+                else TrainingParticipation.OSMOSIS
+                if player_id == 5
+                else TrainingParticipation.NONE
+            ),
+        )
+        for player_id in range(1, 13)
+    )
+    scenario = RosterScenario(
+        "osmosis-sale",
+        "Sell osmosis beneficiary",
+        (
+            SellTransition(
+                "sell-osmosis",
+                "current",
+                "player:5",
+                TransferValue(None, 1_000, None),
+            ),
+        ),
+    )
+    checkpoint = evaluate_roster_scenarios(
+        _single_checkpoint_request(players, scenario)
+    ).scenarios[0].checkpoints[0]
+    assert checkpoint.training.unused_capacity == pytest.approx(2)
+    assert checkpoint.transition_impacts[0].training_slot_delta == pytest.approx(0)
+
+
+def test_mixed_full_and_osmosis_exposure_consumes_one_slot_not_two() -> None:
+    players = tuple(
+        _player(
+            player_id,
+            participation=(
+                TrainingParticipation.FULL
+                if player_id <= 4
+                else TrainingParticipation.MIXED
+                if player_id == 5
+                else TrainingParticipation.NONE
+            ),
+            exposure=(
+                TrainingExposure(full_minutes=90, osmosis_minutes=90)
+                if player_id == 5
+                else None
+            ),
+        )
+        for player_id in range(1, 13)
+    )
+    training = evaluate_roster_scenarios(
+        _single_checkpoint_request(players)
+    ).baseline.checkpoints[0].training
+    assert training.mixed == 1
+    assert training.consumed_capacity == pytest.approx(5)
+    assert training.unused_capacity == pytest.approx(1)
+
+
+def test_synthetic_baseline_scenario_id_is_reserved() -> None:
+    scenario = RosterScenario("baseline", "Ambiguous duplicate", ())
+    with pytest.raises(RosterScenarioValidationError, match="reserved"):
+        evaluate_roster_scenarios(_request(scenario))
 
 
 def test_scenario_delta_exposes_decomposed_metrics() -> None:

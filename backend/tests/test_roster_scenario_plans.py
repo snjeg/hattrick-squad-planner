@@ -187,6 +187,8 @@ def test_plan_adapter_applies_foreign_wage_surcharge_to_model_estimate(
     wages = [item["weekly_wage"] for item in assumed_players]
     assert wages[1] > wages[0]
     assert assumed_players[1]["wage_source"] == "model_estimate"
+    assert assumed_players[0]["meaningful_capacity_consumption"] == 1
+    assert results[0]["checkpoints"][0]["training"]["consumed_capacity"] == 1
 
 
 def test_acquisition_timing_keeps_same_initial_football_state_but_changes_carrying_cost(

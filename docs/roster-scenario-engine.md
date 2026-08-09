@@ -120,7 +120,18 @@ roster size, role distribution, training participation, and unused aggregate cap
 are computed against the no-transition baseline at the same checkpoint.
 
 Meaningful training capacity uses the existing two-match positional caps for full and partial
-training positions. It remains an aggregate model, not an automatic appearance scheduler.
+training positions. Capacity and consumption share one unit: a 90-minute full/partial
+positional-recipient slot. Per-player consumption applies the training engine's HO-traced
+full-before-partial 90-minute direct cap, then divides the retained full plus partial minutes by
+90. A full or partial 90-minute assignment therefore consumes `1.0`; mixed direct exposure is
+deterministic from its underlying minutes and cannot exceed `1.0` per player. Osmosis-only and
+Set Pieces bonus-only exposure consume `0.0` ordinary positional capacity. They remain visible,
+along with full, partial, and mixed exposure, in the separate beneficiary counts. This prevents
+background or bonus beneficiaries from hiding a genuinely unused scarce slot. The metric
+remains an aggregate model, not an automatic appearance scheduler.
+
+The engine reserves `scenario_id="baseline"` for its synthetic no-transition comparison and
+rejects a supplied scenario with that ID.
 Coverage gaps are descriptive (`legal_xi`, goalkeeper, inner midfield, winger) and never become
 automatic purchase instructions. Fewer than eleven non-EXIT players produces warnings and no
 squad evaluation instead of a fabricated rating.
