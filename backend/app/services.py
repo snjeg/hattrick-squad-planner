@@ -119,6 +119,8 @@ def sync_squad(session: Session, client: CHPPClient, source: str) -> SyncRespons
                     temporary_income=finance.temporary_income,
                     temporary_costs=finance.temporary_costs,
                     spectator_income=finance.spectator_income,
+                    supporter_count=finance.supporter_count,
+                    fan_mood=finance.fan_mood,
                 )
             )
         if arena is not None:

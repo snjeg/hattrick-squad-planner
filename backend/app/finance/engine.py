@@ -46,8 +46,12 @@ def project_finances(
         raise ValueError("Fixture weeks must be inside the projection horizon")
 
     notes: list[str] = []
-    if assumptions.expected_home_match_revenue is None:
-        notes.append("Future home-match income is excluded until the user supplies an assumption.")
+    if assumptions.expected_home_match_revenue is None and any(
+        fixture.is_home and fixture.club_revenue is None for fixture in fixtures
+    ):
+        notes.append(
+            "Some future home-match income is excluded because no revenue source resolved."
+        )
     if assumptions.weeks_until_season_boundary is None:
         notes.append(
             "No season boundary is set; current sponsor income is extrapolated with uncertainty."
@@ -75,7 +79,21 @@ def project_finances(
             for fixture in fixtures
             if fixture.week == week and fixture.is_home
         )
-        match_income = len(home) * (assumptions.expected_home_match_revenue or 0)
+        week_fixtures = tuple(fixture for fixture in fixtures if fixture.week == week)
+        resolved = tuple(
+            (
+                fixture,
+                fixture.club_revenue
+                if fixture.club_revenue is not None
+                else (
+                    assumptions.expected_home_match_revenue or 0
+                    if fixture.is_home
+                    else 0
+                ),
+            )
+            for fixture in week_fixtures
+        )
+        match_income = sum(revenue for _, revenue in resolved)
         fixed = (
             assumptions.staff_costs
             + assumptions.youth_costs
@@ -103,6 +121,16 @@ def project_finances(
                 total_cash_flow=total,
                 ending_cash=cash,
                 home_fixture_ids=home,
+                contributing_fixture_ids=tuple(
+                    fixture.match_id for fixture, revenue in resolved if revenue > 0
+                ),
+                match_revenue_sources={
+                    fixture.match_id: (
+                        fixture.revenue_source
+                        or ("legacy_home_fallback" if fixture.is_home else "zero")
+                    )
+                    for fixture, _ in resolved
+                },
             )
         )
 

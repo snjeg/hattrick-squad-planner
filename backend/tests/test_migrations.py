@@ -11,7 +11,7 @@ from app.models import OAuthCredential, OAuthRequestState, Player, PlayerSnapsho
 BACKEND_ROOT = Path(__file__).parents[1]
 
 
-def test_migrations_build_schema_through_milestone_4(
+def test_migrations_build_schema_through_milestone_4_1(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     database_url = f"sqlite:///{(tmp_path / 'migration.db').as_posix()}"
@@ -40,11 +40,16 @@ def test_migrations_build_schema_through_milestone_4(
         "arena_snapshots",
         "fixture_snapshots",
         "training_plan_finance_assumptions",
+        "training_plan_fixture_assumptions",
     }.issubset(inspector.get_table_names())
     plan_columns = {
         column["name"] for column in inspector.get_columns("training_plans")
     }
     assert "starting_finance_snapshot_id" in plan_columns
+    finance_columns = {
+        column["name"] for column in inspector.get_columns("finance_snapshots")
+    }
+    assert {"supporter_count", "fan_mood"}.issubset(finance_columns)
     get_settings.cache_clear()
 
 
@@ -88,5 +93,6 @@ def test_initial_migration_adopts_existing_milestone_1_sqlite(
         "arena_snapshots",
         "fixture_snapshots",
         "training_plan_finance_assumptions",
+        "training_plan_fixture_assumptions",
     }.issubset(inspector.get_table_names())
     get_settings.cache_clear()

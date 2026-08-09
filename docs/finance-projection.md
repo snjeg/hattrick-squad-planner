@@ -34,7 +34,7 @@ For each plan week:
 
 ```text
 operating cash flow = sponsor income
-                    + assumed revenue for each known home fixture
+                    + resolved club revenue for each known fixture
                     - projected squad wages
                     - fixed staff, youth, and arena costs
 
@@ -50,9 +50,12 @@ end; the API also returns every weekly row.
 ## Explicit assumptions
 
 Current cash, sponsor income, staff, youth, and arena costs default from the plan-bound
-finance snapshot and can be overridden. Future home-match revenue is never inferred from
-arena size or attendance: it is excluded until the user supplies an expected per-home-
-match amount. Away fixtures produce no match income.
+finance snapshot and can be overridden. Fixture revenue resolves by manual per-fixture
+override, then a weather-specific attendance estimate for eligible home fixtures, then
+the legacy expected-home-revenue assumption, then zero. Unknown weather remains four
+visible scenarios and is not averaged into finance. Away cup/friendly shares are supported
+by the revenue domain; the current service needs a manual override because it does not
+import the host club's arena and supporter inputs. See `docs/attendance-model.md`.
 
 The current sponsor value is held while the plan remains in the current season. Because
 this milestone does not import a league-calendar boundary, the user may provide weeks to
@@ -74,13 +77,15 @@ planning convention, not a claim about Hattrick's exact weekly economic-update t
 - `GET /api/training-plans/{id}/finance` returns bound current facts, arena, fixtures,
   assumptions, and wage-model quality.
 - `PUT /api/training-plans/{id}/finance/assumptions` replaces the plan's assumption set.
+- `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` stores weather and optional
+  club-revenue override for one plan-bound fixture.
 - `POST /api/training-plans/{id}/finance/simulate` returns weekly rows, block checkpoints,
   player/squad wages, totals, and uncertainty notes.
 
 ## Limits requiring manual validation
 
-- Exact future attendance, ticket revenue, sponsor change, and season-boundary timing are
-  unknown; they remain explicit assumptions.
+- Exact future attendance, sponsor change, and season-boundary timing are unknown. The
+  attendance model is an explicitly low-confidence community scenario.
 - CHPP `CostsPlayers` may include game-side adjustments not reproduced by summing player
   salary fields. Both are retained as separate facts.
 - Wage changes after birthdays use the low-confidence model described in

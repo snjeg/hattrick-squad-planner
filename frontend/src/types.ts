@@ -172,6 +172,8 @@ export interface FinanceAssumptions {
   expected_home_match_revenue: number | null
   weeks_until_season_boundary: number | null
   sponsor_income_after_boundary: number | null
+  attendance_model_enabled: boolean
+  fan_mood_override: number | null
 }
 
 export interface PlanFinance {
@@ -188,6 +190,8 @@ export interface PlanFinance {
     arena_costs: number
     financial_income: number
     financial_costs: number
+    supporter_count: number | null
+    fan_mood: number | null
   }
   arena: null | {
     arena_name: string
@@ -203,10 +207,44 @@ export interface PlanFinance {
     match_type: number
     is_home: boolean
     opponent: string
+    weather_override: string | null
+    manual_revenue_override: number | null
+    attendance_estimate: AttendanceEstimate | null
+    weather_scenarios: Record<string, AttendanceEstimate>
   }>
   assumptions: FinanceAssumptions
   wage_model_version: string
   wage_model_quality: string
+}
+
+export interface AttendanceEstimate {
+  model_version: string
+  quality: string
+  weather: string
+  sections: Array<{
+    category: string
+    baseline_demand: number
+    adjusted_demand: number
+    capacity: number
+    sold: number
+    unmet_demand: number
+    utilization: number
+    ticket_price: number
+    weekly_maintenance_per_seat: number
+    gross_revenue: number
+    unmet_revenue_potential: number
+  }>
+  baseline_total_demand: number
+  adjusted_total_demand: number
+  total_capacity: number
+  total_attendance: number
+  utilization: number
+  gross_revenue: number
+  average_revenue_per_spectator: number
+  club_revenue: number | null
+  opponent_revenue: number | null
+  revenue_share: number | null
+  notes: string[]
 }
 
 export interface FinanceProjection {
@@ -226,6 +264,8 @@ export interface FinanceProjection {
     total_cash_flow: number
     ending_cash: number
     home_fixture_ids: number[]
+    contributing_fixture_ids: number[]
+    match_revenue_sources: Record<number, string>
   }>
   block_checkpoints: Array<{
     block_id: number

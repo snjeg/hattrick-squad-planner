@@ -1,4 +1,4 @@
-# Architecture through Milestone 4
+# Architecture through Milestone 4.1
 
 ## Data flow
 
@@ -73,6 +73,7 @@ weekly training states ----> approximate birthday wage projection
 - `training_plans` and related block/assignment tables persist hypothetical manual configuration.
 - `finance_snapshots`, `arena_snapshots`, and `fixture_snapshots` preserve sync-bound CHPP facts.
 - `training_plan_finance_assumptions` stores user-owned scenario inputs separately from facts.
+- `training_plan_fixture_assumptions` stores optional weather and club-revenue overrides.
 - `training_plan_players` references exact factual snapshots; projected weekly states are not tables.
 
 Snapshot rows are append-only. The squad query chooses the newest observation by `observed_at`, then `sync_run_id`, then snapshot `id`, all descending. The latter two fields provide deterministic tie-breaking rather than treating the largest auto-increment ID as chronological truth.
@@ -107,7 +108,9 @@ FastAPI, or React.
 
 `backend/app/finance/` consumes fixed staff/youth/arena costs, projected weekly squad
 wages, fixture events, and explicit assumptions. It keeps operating and capital cash flow
-separate and does not infer attendance, transfer proceeds, or recommendations. Imported
+separate and does not infer transfer proceeds or recommendations. `backend/app/attendance/`
+provides a standalone seat-level community estimate with explicit weather uncertainty;
+the finance service selects it only when the required facts and assumed weather exist. Imported
 financial income/cost remains factual but is not extrapolated because it can depend on the
 club's changing balance.
 `finance_services.py` translates between plan-bound database facts and these independent
@@ -127,6 +130,6 @@ Plaintext OAuth-token storage exists only to support single-user local developme
 - Fractional starting skills default to visible +0.00; automatic inference remains future work.
 - The simple plan UI supports one appearance per player while the API supports mixed segments.
 - Capacity is an aggregate two-match validator, not an automatic lineup or match simulator.
-- Exact wages, attendance, optimization, transfers, lineup ratings, tactics, and finance
-  recommendations remain future work. Milestone 4 wages are scenario approximations, not
-  a verified reproduction of Hattrick's private formula.
+- Exact wages or attendance, stadium optimization, transfers, lineup ratings, tactics, and
+  finance recommendations remain future work. Wage and attendance results are labeled
+  approximations, not verified reproductions of Hattrick's private formulas.

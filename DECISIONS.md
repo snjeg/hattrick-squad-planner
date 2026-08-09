@@ -284,3 +284,19 @@ keep operating sustainability separate from transfers.
 Current `IncomeFinancial` and `CostsFinancial` observations are also excluded from future
 weeks because balance-dependent interest is not a normal fixed recurring amount. Staff,
 youth, and arena maintenance remain recurring until explicitly overridden.
+
+---
+
+## 2026-08-09 - Attendance is a traceable community scenario, not an exact formula
+
+**Decision:** Use the eleven sourced community arena-demand rows as a versioned,
+low-confidence seat-level baseline. Keep weather in a separate, explicit assumption table;
+cap every section independently without substitution; and return four scenarios when
+weather is unknown. Use official Manual prices and revenue-sharing rules.
+
+**Reason:** No audited source publishes exact current attendance or weather coefficients.
+Several tools output precise values, but that precision does not establish accuracy. The
+separated tables are internally consistent, testable, and reusable for later stadium work.
+
+**Revisit:** Calibrate only after importing a sufficient set of post-match `matchdetails`
+observations, and preserve the original model version for reproducibility.

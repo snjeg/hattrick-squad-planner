@@ -13,6 +13,7 @@ from app.database import get_session
 from app.finance_services import (
     get_plan_finance,
     run_finance_projection,
+    update_fixture_attendance_assumption,
     update_plan_finance_assumptions,
 )
 from app.models import OAuthCredential, OAuthRequestState
@@ -36,6 +37,7 @@ from app.schemas import (
     CHPPStatusResponse,
     FinanceAssumptionsUpdate,
     FinanceProjectionResponse,
+    FixtureAttendanceUpdate,
     HealthResponse,
     PlanFinanceResponse,
     SimulationResponse,
@@ -312,6 +314,19 @@ def update_finance_assumptions(
     payload: FinanceAssumptionsUpdate,
 ) -> PlanFinanceResponse:
     return update_plan_finance_assumptions(session, plan_id, payload)
+
+
+@app.put(
+    "/api/training-plans/{plan_id}/finance/fixtures/{match_id}",
+    response_model=PlanFinanceResponse,
+)
+def update_fixture_attendance(
+    session: SessionDependency,
+    plan_id: int,
+    match_id: int,
+    payload: FixtureAttendanceUpdate,
+) -> PlanFinanceResponse:
+    return update_fixture_attendance_assumption(session, plan_id, match_id, payload)
 
 
 @app.post(

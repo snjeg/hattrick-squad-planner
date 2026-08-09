@@ -19,6 +19,7 @@ vi.mock('./api', () => ({
     simulatePlan: vi.fn(),
     planFinance: vi.fn(),
     saveFinanceAssumptions: vi.fn(),
+    saveFixtureAttendance: vi.fn(),
     simulateFinances: vi.fn(),
   },
 }))
@@ -88,6 +89,8 @@ const savedFinance: PlanFinance = {
     arena_costs: 14500,
     financial_income: 1200,
     financial_costs: 0,
+    supporter_count: 1200,
+    fan_mood: 7,
   },
   arena: {
     arena_name: 'Architecture Ground',
@@ -103,6 +106,10 @@ const savedFinance: PlanFinance = {
     match_type: 1,
     is_home: true,
     opponent: 'Visitors FC',
+    weather_override: null,
+    manual_revenue_override: null,
+    attendance_estimate: null,
+    weather_scenarios: {},
   }],
   assumptions: {
     starting_cash_override: null,
@@ -113,6 +120,8 @@ const savedFinance: PlanFinance = {
     expected_home_match_revenue: null,
     weeks_until_season_boundary: null,
     sponsor_income_after_boundary: null,
+    attendance_model_enabled: true,
+    fan_mood_override: null,
   },
   wage_model_version: 'approx-test',
   wage_model_quality: 'approximate-low-confidence',
@@ -169,5 +178,7 @@ describe('manual training plans', () => {
     expect(screen.getByText('Architecture Ground · 23,500')).toBeInTheDocument()
     expect(screen.getByLabelText('Expected home match revenue')).toBeInTheDocument()
     expect(screen.getByText(/low confidence/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Weather for Visitors FC')).toHaveValue('')
+    expect(screen.getByText(/Attendance estimate unavailable/)).toBeInTheDocument()
   })
 })

@@ -264,6 +264,27 @@ function TrainingPlans() {
     }
   }
 
+  async function saveFixtureAttendance(
+    matchId: number,
+    weather: string | null,
+    manualRevenue: number | null,
+  ) {
+    if (!plan) return
+    setBusy(true)
+    setError(null)
+    try {
+      setFinance(await api.saveFixtureAttendance(plan.id, matchId, {
+        weather_override: weather,
+        manual_revenue_override: manualRevenue,
+      }))
+      setFinanceProjection(null)
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function runFinanceProjection() {
     if (!plan) return
     setBusy(true)
@@ -463,6 +484,8 @@ function TrainingPlans() {
                     <label>Assumption: home-match revenue<input aria-label="Expected home match revenue" type="number" min="0" value={finance.assumptions.expected_home_match_revenue ?? ''} onChange={(event) => updateAssumption('expected_home_match_revenue', event.target.value)} /></label>
                     <label>Assumption: weeks to season boundary<input aria-label="Weeks until season boundary" type="number" min="0" value={finance.assumptions.weeks_until_season_boundary ?? ''} onChange={(event) => updateAssumption('weeks_until_season_boundary', event.target.value)} /></label>
                     <label>Assumption: sponsor after boundary<input aria-label="Sponsor income after boundary" type="number" min="0" value={finance.assumptions.sponsor_income_after_boundary ?? ''} onChange={(event) => updateAssumption('sponsor_income_after_boundary', event.target.value)} /></label>
+                    <label>Fan mood override (1â€“11)<input aria-label="Fan mood override" type="number" min="1" max="11" value={finance.assumptions.fan_mood_override ?? ''} placeholder={String(finance.factual?.fan_mood ?? '')} onChange={(event) => updateAssumption('fan_mood_override', event.target.value)} /></label>
+                    <label><input aria-label="Enable attendance model" type="checkbox" checked={finance.assumptions.attendance_model_enabled} onChange={(event) => setFinance({ ...finance, assumptions: { ...finance.assumptions, attendance_model_enabled: event.target.checked } })} /> Enable approximate attendance model</label>
                   </div>
                   <div className="finance-actions">
                     <button className="secondary-button" disabled={busy} onClick={() => void saveFinanceAssumptions()}>Save assumptions</button>
@@ -470,8 +493,16 @@ function TrainingPlans() {
                   </div>
 
                   <div className="fixture-note">
-                    <strong>Current fixtures:</strong> {finance.fixtures.length || 'none'} imported; only home fixtures receive the user-entered revenue assumption.
+                    <strong>Imported fixtures:</strong> {finance.fixtures.length || 'none'}. Revenue priority is manual fixture override, weather-specific attendance estimate, legacy home assumption, then zero.
                   </div>
+                  {finance.fixtures.map((fixture) => (
+                    <div className="fixture-note" key={fixture.match_id}>
+                      <strong>{fixture.is_home ? 'Home' : 'Away'} vs {fixture.opponent}</strong>
+                      <label> Weather <select aria-label={`Weather for ${fixture.opponent}`} value={fixture.weather_override ?? ''} onChange={(event) => void saveFixtureAttendance(fixture.match_id, event.target.value || null, fixture.manual_revenue_override)}><option value="">Unknown (show scenarios)</option><option value="sunny">Sunny</option><option value="partly_cloudy">Partly cloudy</option><option value="overcast">Overcast</option><option value="rain">Rain</option></select></label>
+                      <label> Club revenue override <input aria-label={`Revenue for ${fixture.opponent}`} type="number" min="0" value={fixture.manual_revenue_override ?? ''} onBlur={(event) => void saveFixtureAttendance(fixture.match_id, fixture.weather_override, optionalNumber(event.target.value))} onChange={(event) => setFinance({ ...finance, fixtures: finance.fixtures.map((item) => item.match_id === fixture.match_id ? { ...item, manual_revenue_override: optionalNumber(event.target.value) } : item) })} /></label>
+                      {fixture.attendance_estimate ? <small> Estimated {fixture.attendance_estimate.total_attendance.toLocaleString()} spectators ({(fixture.attendance_estimate.utilization * 100).toFixed(1)}% stadium utilization); club revenue {money(fixture.attendance_estimate.club_revenue)} ({fixture.attendance_estimate.quality}).</small> : Object.keys(fixture.weather_scenarios).length ? <small> Unknown weather scenario range: {Math.min(...Object.values(fixture.weather_scenarios).map((item) => item.total_attendance)).toLocaleString()}â€“{Math.max(...Object.values(fixture.weather_scenarios).map((item) => item.total_attendance)).toLocaleString()} spectators.</small> : <small> Attendance estimate unavailable; use a manual revenue override if needed.</small>}
+                    </div>
+                  ))}
 
                   {financeProjection && (
                     <div className="finance-results">

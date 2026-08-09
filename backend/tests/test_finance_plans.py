@@ -144,3 +144,58 @@ def test_finance_rest_endpoint_rejects_negative_assumptions(
     )
 
     assert response.status_code == 422
+
+
+def test_fixture_weather_enables_attendance_estimate_and_finance_priority(
+    session_factory: sessionmaker[Session], client: TestClient
+) -> None:
+    with session_factory() as session:
+        plan_id = finance_plan(session, weeks=2)
+
+    initial = client.get(f"/api/training-plans/{plan_id}/finance").json()
+    home = next(item for item in initial["fixtures"] if item["match_id"] == 700001)
+    assert home["attendance_estimate"] is None
+    assert set(home["weather_scenarios"]) == {
+        "rain",
+        "overcast",
+        "partly_cloudy",
+        "sunny",
+    }
+
+    saved = client.put(
+        f"/api/training-plans/{plan_id}/finance/fixtures/700001",
+        json={"weather_override": "rain", "manual_revenue_override": None},
+    )
+    assert saved.status_code == 200
+    estimate = next(
+        item for item in saved.json()["fixtures"] if item["match_id"] == 700001
+    )["attendance_estimate"]
+    assert estimate["weather"] == "rain"
+    assert estimate["quality"] == "approximate-low-confidence"
+
+    projection = client.post(
+        f"/api/training-plans/{plan_id}/finance/simulate"
+    ).json()
+    assert projection["weekly_rows"][0]["match_income"] == estimate["club_revenue"]
+    assert projection["weekly_rows"][0]["match_revenue_sources"] == {
+        "700001": "attendance_model"
+    }
+
+
+def test_manual_fixture_revenue_beats_attendance_estimate(
+    session_factory: sessionmaker[Session], client: TestClient
+) -> None:
+    with session_factory() as session:
+        plan_id = finance_plan(session, weeks=2)
+    client.put(
+        f"/api/training-plans/{plan_id}/finance/fixtures/700001",
+        json={"weather_override": "sunny", "manual_revenue_override": 12345},
+    )
+
+    projection = client.post(
+        f"/api/training-plans/{plan_id}/finance/simulate"
+    ).json()
+    assert projection["weekly_rows"][0]["match_income"] == 12345
+    assert projection["weekly_rows"][0]["match_revenue_sources"] == {
+        "700001": "manual_fixture_override"
+    }

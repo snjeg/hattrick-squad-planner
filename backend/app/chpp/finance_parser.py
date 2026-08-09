@@ -50,6 +50,8 @@ def parse_economy_xml(xml: str) -> NormalizedFinance:
         temporary_income=_int(team, "IncomeTemporary") or 0,
         temporary_costs=_int(team, "CostsTemporary") or 0,
         spectator_income=_int(team, "IncomeSpectators") or 0,
+        supporter_count=_int(team, "FanClubSize"),
+        fan_mood=_int(team, "SupportersPopularity"),
     )
 
 

@@ -55,6 +55,8 @@ class NormalizedFinance:
     temporary_income: int
     temporary_costs: int
     spectator_income: int
+    supporter_count: int | None
+    fan_mood: int | None
 
 
 @dataclass(frozen=True, slots=True)

@@ -115,6 +115,8 @@ class FinanceSnapshot(Base):
     temporary_income: Mapped[int] = mapped_column(Integer, default=0)
     temporary_costs: Mapped[int] = mapped_column(Integer, default=0)
     spectator_income: Mapped[int] = mapped_column(Integer, default=0)
+    supporter_count: Mapped[int | None] = mapped_column(Integer)
+    fan_mood: Mapped[int | None] = mapped_column(Integer)
 
 
 class ArenaSnapshot(Base):
@@ -183,6 +185,9 @@ class TrainingPlan(Base):
     finance_assumptions: Mapped["TrainingPlanFinanceAssumptions | None"] = relationship(
         back_populates="plan", cascade="all, delete-orphan", uselist=False
     )
+    fixture_assumptions: Mapped[list["TrainingPlanFixtureAssumption"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan"
+    )
 
 
 class TrainingPlanFinanceAssumptions(Base):
@@ -210,12 +215,36 @@ class TrainingPlanFinanceAssumptions(Base):
     expected_home_match_revenue: Mapped[int | None] = mapped_column(Integer)
     weeks_until_season_boundary: Mapped[int | None] = mapped_column(Integer)
     sponsor_income_after_boundary: Mapped[int | None] = mapped_column(Integer)
+    attendance_model_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    fan_mood_override: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
 
     plan: Mapped[TrainingPlan] = relationship(back_populates="finance_assumptions")
+
+
+class TrainingPlanFixtureAssumption(Base):
+    __tablename__ = "training_plan_fixture_assumptions"
+    __table_args__ = (
+        UniqueConstraint("plan_id", "match_id", name="uq_plan_fixture_assumption"),
+        CheckConstraint(
+            "manual_revenue_override IS NULL OR manual_revenue_override >= 0",
+            name="ck_fixture_manual_revenue",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("training_plans.id"), index=True)
+    match_id: Mapped[int] = mapped_column(Integer)
+    weather_override: Mapped[str | None] = mapped_column(String(30))
+    manual_revenue_override: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+    plan: Mapped[TrainingPlan] = relationship(back_populates="fixture_assumptions")
 
 
 class TrainingPlanPlayer(Base):

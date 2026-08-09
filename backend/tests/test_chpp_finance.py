@@ -21,6 +21,8 @@ def test_economy_parser_normalizes_documented_current_week_fields() -> None:
     assert finance.staff_costs == 18_000
     assert finance.youth_costs == 10_000
     assert finance.arena_costs == 14_500
+    assert finance.supporter_count == 1_200
+    assert finance.fan_mood == 7
 
 
 def test_arena_parser_normalizes_current_seat_structure() -> None:
