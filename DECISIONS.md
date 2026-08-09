@@ -239,3 +239,48 @@ The 2026-08-08 direct source audit found one HO-internal discrepancy for Winger/
 **Reason:** It rejects obvious impossible plans such as seven full IM trainees while supporting substitutions and mixed appearances without building a future-match simulator.
 
 **Revisit:** Aggregate feasibility does not prove that every unusual mixed-minute allocation can be scheduled into two concrete lineups. Add an explicit lineup scheduler only if a later milestone requires it.
+
+---
+
+## 2026-08-09 - Wage estimates must expose low confidence
+
+**Decision:** Treat imported CHPP wages as factual and hold them until a simulated
+birthday. After a birthday, use a versioned community-derived approximation labeled
+`approximate-low-confidence`; never present it as Hattrick's exact formula.
+
+**Reason:** The current official rules expose only broad mechanics and surcharges. HO has
+no forward wage predictor, while Foxtrick provides a reverse estimator with an explicit
+goalkeeper placeholder. Manufacturing precision would be more harmful than a transparent
+scenario estimate.
+
+**Revisit:** Replace or recalibrate only after a complete current formula or a validated
+live-data corpus is available. Verify birthday ordering, goalkeeper behavior, age discount,
+and secondary-skill weights before optimization uses wage pressure.
+
+---
+
+## 2026-08-09 - Finance facts are plan-bound and append-only
+
+**Decision:** A plan references the finance snapshot from the same completed sync as its
+player snapshots. Economy, arena, and fixture imports append observations; user finance
+assumptions live in a separate one-to-one scenario record.
+
+**Reason:** Later syncs must not silently rewrite an existing scenario, and assumptions
+must never be mistaken for CHPP facts.
+
+---
+
+## 2026-08-09 - Unknown future revenue remains an assumption
+
+**Decision:** Do not infer attendance or future sponsor changes. Home-match revenue is
+excluded until entered by the user. Beyond an explicit season boundary, sponsor income is
+either user-supplied or excluded with a warning. Capital cash flow remains zero in this
+milestone.
+
+**Reason:** The imported current-week economy and fixture schedule do not establish future
+attendance or next-season sponsor values. Explicit omissions preserve traceability and
+keep operating sustainability separate from transfers.
+
+Current `IncomeFinancial` and `CostsFinancial` observations are also excluded from future
+weeks because balance-dependent interest is not a normal fixed recurring amount. Staff,
+youth, and arena maintenance remain recurring until explicitly overridden.

@@ -93,12 +93,78 @@ class PlayerSnapshot(Base):
     player: Mapped[Player] = relationship(back_populates="snapshots")
 
 
+class FinanceSnapshot(Base):
+    __tablename__ = "finance_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sync_run_id: Mapped[int] = mapped_column(
+        ForeignKey("sync_runs.id"), unique=True, index=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    source_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    team_id: Mapped[int] = mapped_column(Integer, index=True)
+    cash_balance: Mapped[int] = mapped_column(Integer)
+    expected_cash: Mapped[int | None] = mapped_column(Integer)
+    sponsor_income: Mapped[int] = mapped_column(Integer)
+    player_wages: Mapped[int] = mapped_column(Integer)
+    staff_costs: Mapped[int] = mapped_column(Integer)
+    youth_costs: Mapped[int] = mapped_column(Integer)
+    arena_costs: Mapped[int] = mapped_column(Integer)
+    financial_income: Mapped[int] = mapped_column(Integer, default=0)
+    financial_costs: Mapped[int] = mapped_column(Integer, default=0)
+    temporary_income: Mapped[int] = mapped_column(Integer, default=0)
+    temporary_costs: Mapped[int] = mapped_column(Integer, default=0)
+    spectator_income: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ArenaSnapshot(Base):
+    __tablename__ = "arena_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sync_run_id: Mapped[int] = mapped_column(
+        ForeignKey("sync_runs.id"), unique=True, index=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    source_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    arena_id: Mapped[int] = mapped_column(Integer)
+    team_id: Mapped[int] = mapped_column(Integer, index=True)
+    arena_name: Mapped[str] = mapped_column(String(160))
+    terraces: Mapped[int] = mapped_column(Integer)
+    basic: Mapped[int] = mapped_column(Integer)
+    roof: Mapped[int] = mapped_column(Integer)
+    vip: Mapped[int] = mapped_column(Integer)
+    total: Mapped[int] = mapped_column(Integer)
+
+
+class FixtureSnapshot(Base):
+    __tablename__ = "fixture_snapshots"
+    __table_args__ = (
+        UniqueConstraint("sync_run_id", "match_id", name="uq_fixture_snapshot_match"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sync_run_id: Mapped[int] = mapped_column(ForeignKey("sync_runs.id"), index=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    source_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    match_id: Mapped[int] = mapped_column(Integer, index=True)
+    match_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    match_type: Mapped[int] = mapped_column(Integer)
+    home_team_id: Mapped[int] = mapped_column(Integer)
+    home_team_name: Mapped[str] = mapped_column(String(160))
+    away_team_id: Mapped[int] = mapped_column(Integer)
+    away_team_name: Mapped[str] = mapped_column(String(160))
+    is_home: Mapped[bool] = mapped_column(Boolean)
+
+
 class TrainingPlan(Base):
     __tablename__ = "training_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     starting_sync_run_id: Mapped[int] = mapped_column(ForeignKey("sync_runs.id"))
+    starting_finance_snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("finance_snapshots.id")
+    )
     formula_version: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -113,6 +179,43 @@ class TrainingPlan(Base):
         cascade="all, delete-orphan",
         order_by="(TrainingBlock.sort_order, TrainingBlock.id)",
     )
+    finance_snapshot: Mapped[FinanceSnapshot | None] = relationship()
+    finance_assumptions: Mapped["TrainingPlanFinanceAssumptions | None"] = relationship(
+        back_populates="plan", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class TrainingPlanFinanceAssumptions(Base):
+    __tablename__ = "training_plan_finance_assumptions"
+    __table_args__ = (
+        CheckConstraint(
+            "expected_home_match_revenue IS NULL OR expected_home_match_revenue >= 0",
+            name="ck_finance_home_revenue",
+        ),
+        CheckConstraint(
+            "weeks_until_season_boundary IS NULL OR weeks_until_season_boundary >= 0",
+            name="ck_finance_boundary_weeks",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(
+        ForeignKey("training_plans.id"), unique=True, index=True
+    )
+    starting_cash_override: Mapped[int | None] = mapped_column(Integer)
+    sponsor_income_override: Mapped[int | None] = mapped_column(Integer)
+    staff_cost_override: Mapped[int | None] = mapped_column(Integer)
+    youth_cost_override: Mapped[int | None] = mapped_column(Integer)
+    arena_cost_override: Mapped[int | None] = mapped_column(Integer)
+    expected_home_match_revenue: Mapped[int | None] = mapped_column(Integer)
+    weeks_until_season_boundary: Mapped[int | None] = mapped_column(Integer)
+    sponsor_income_after_boundary: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    plan: Mapped[TrainingPlan] = relationship(back_populates="finance_assumptions")
 
 
 class TrainingPlanPlayer(Base):

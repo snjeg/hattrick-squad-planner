@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HattrickData>
+  <FileName>matches</FileName>
+  <Version>2.2</Version>
+  <FetchedDate>2026-08-08 12:00:02</FetchedDate>
+  <Team>
+    <TeamID>123456</TeamID>
+    <TeamName>FC Architecture</TeamName>
+    <MatchList Count="3">
+      <Match Index="1">
+        <MatchID>700001</MatchID>
+        <HomeTeam><HomeTeamID>123456</HomeTeamID><HomeTeamName>FC Architecture</HomeTeamName></HomeTeam>
+        <AwayTeam><AwayTeamID>200001</AwayTeamID><AwayTeamName>Visitors United</AwayTeamName></AwayTeam>
+        <MatchDate>2026-08-11 20:00:00</MatchDate>
+        <MatchType>1</MatchType>
+      </Match>
+      <Match Index="2">
+        <MatchID>700002</MatchID>
+        <HomeTeam><HomeTeamID>200002</HomeTeamID><HomeTeamName>Away Town</HomeTeamName></HomeTeam>
+        <AwayTeam><AwayTeamID>123456</AwayTeamID><AwayTeamName>FC Architecture</AwayTeamName></AwayTeam>
+        <MatchDate>2026-08-18 20:00:00</MatchDate>
+        <MatchType>1</MatchType>
+      </Match>
+      <Match Index="3">
+        <MatchID>700003</MatchID>
+        <HomeTeam><HomeTeamID>123456</HomeTeamID><HomeTeamName>FC Architecture</HomeTeamName></HomeTeam>
+        <AwayTeam><AwayTeamID>200003</AwayTeamID><AwayTeamName>Cup Guests</AwayTeamName></AwayTeam>
+        <MatchDate>2026-08-25 20:00:00</MatchDate>
+        <MatchType>3</MatchType>
+      </Match>
+    </MatchList>
+  </Team>
+</HattrickData>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HattrickData>
+  <FileName>arenadetails</FileName>
+  <Version>1.2</Version>
+  <FetchedDate>2026-08-08 12:00:01</FetchedDate>
+  <Arena>
+    <ArenaID>654321</ArenaID>
+    <ArenaName>Architecture Ground</ArenaName>
+    <Team><TeamID>123456</TeamID><TeamName>FC Architecture</TeamName></Team>
+    <CurrentCapacity>
+      <Terraces>14000</Terraces>
+      <Basic>6000</Basic>
+      <Roof>3000</Roof>
+      <VIP>500</VIP>
+      <Total>23500</Total>
+    </CurrentCapacity>
+  </Arena>
+</HattrickData>

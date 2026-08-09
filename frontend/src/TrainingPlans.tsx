@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { formatAge, formatProjectedSkill } from './format'
 import type {
+  FinanceAssumptions,
+  FinanceProjection,
+  PlanFinance,
   Position,
   SimulationResponse,
   Skill,
@@ -68,6 +71,18 @@ function label(value: string): string {
     .join(' ')
 }
 
+function money(value: number | null): string {
+  return value === null ? 'Unknown' : new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function optionalNumber(value: string): number | null {
+  return value === '' ? null : Number(value)
+}
+
 function TrainingPlans() {
   const [plans, setPlans] = useState<TrainingPlanSummary[]>([])
   const [plan, setPlan] = useState<TrainingPlan | null>(null)
@@ -75,6 +90,8 @@ function TrainingPlans() {
   const [newPlanName, setNewPlanName] = useState('Current development plan')
   const [drafts, setDrafts] = useState<Record<number, DraftAssignment>>({})
   const [simulation, setSimulation] = useState<SimulationResponse | null>(null)
+  const [finance, setFinance] = useState<PlanFinance | null>(null)
+  const [financeProjection, setFinanceProjection] = useState<FinanceProjection | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -132,12 +149,14 @@ function TrainingPlans() {
     setBusy(true)
     setError(null)
     try {
-      const loaded = await api.plan(planId)
+      const [loaded, loadedFinance] = await Promise.all([api.plan(planId), api.planFinance(planId)])
       const firstBlockId = loaded.blocks[0]?.id ?? null
       setPlan(loaded)
       setActiveBlockId(firstBlockId)
       setDrafts(draftsFor(loaded, firstBlockId))
       setSimulation(null)
+      setFinance(loadedFinance)
+      setFinanceProjection(null)
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -154,6 +173,8 @@ function TrainingPlans() {
       setActiveBlockId(null)
       setDrafts({})
       setSimulation(null)
+      setFinance(await api.planFinance(created.id))
+      setFinanceProjection(null)
       await refreshPlans()
     } catch (reason) {
       handleError(reason)
@@ -172,6 +193,7 @@ function TrainingPlans() {
       setActiveBlockId(nextBlockId)
       setDrafts(draftsFor(updated, nextBlockId))
       setSimulation(null)
+      setFinanceProjection(null)
       await refreshPlans()
     } catch (reason) {
       handleError(reason)
@@ -213,6 +235,41 @@ function TrainingPlans() {
     setError(null)
     try {
       setSimulation(await api.simulatePlan(plan.id))
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function updateAssumption(field: keyof FinanceAssumptions, value: string) {
+    if (!finance) return
+    setFinance({
+      ...finance,
+      assumptions: { ...finance.assumptions, [field]: optionalNumber(value) },
+    })
+  }
+
+  async function saveFinanceAssumptions() {
+    if (!plan || !finance) return
+    setBusy(true)
+    setError(null)
+    try {
+      setFinance(await api.saveFinanceAssumptions(plan.id, finance.assumptions))
+      setFinanceProjection(null)
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runFinanceProjection() {
+    if (!plan) return
+    setBusy(true)
+    setError(null)
+    try {
+      setFinanceProjection(await api.simulateFinances(plan.id))
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -284,6 +341,8 @@ function TrainingPlans() {
                   onClick={() => void api.deletePlan(plan.id).then(async () => {
                     setPlan(null)
                     setSimulation(null)
+                    setFinance(null)
+                    setFinanceProjection(null)
                     await refreshPlans()
                   }).catch(handleError)}
                 >Delete plan</button>
@@ -371,6 +430,62 @@ function TrainingPlans() {
                   <div className="section-heading"><div><p className="eyebrow">Hypothetical projection</p><h2 id="results-heading">Estimated results</h2></div><span className="player-count">{simulation.total_weeks} weeks</span></div>
                   <div className="table-scroll"><table className="results-table"><thead><tr><th>Player</th><th>Skill</th><th>Current estimate</th>{plan.blocks.map((block) => <th key={block.id}>After {block.order}</th>)}<th>Projected final</th><th>Gain</th></tr></thead><tbody>{simulation.players.flatMap((player) => relevantSkills.map((skill) => <tr key={`${player.player_id}-${skill}`}><th>{player.player}<small>{formatAge(player.starting.age_years, player.starting.age_days)} → {formatAge(player.final.age_years, player.final.age_days)}</small></th><td>{skillLabels[skill]}</td><td>{formatProjectedSkill(player.starting.skills[skill])}</td>{player.after_blocks.map((checkpoint) => <td key={checkpoint.block_id}>{formatProjectedSkill(checkpoint.state.skills[skill])}{checkpoint.skill_ups[skill] ? <small className="skill-up">+{checkpoint.skill_ups[skill]} pop</small> : null}</td>)}<td className="projected-value">{formatProjectedSkill(player.final.skills[skill])}</td><td>+{(player.total_gains[skill] ?? 0).toFixed(2)}</td></tr>))}</tbody></table></div>
                   <p className="formula-note">Estimated using {simulation.formula_version}. Projected states are never written to factual player snapshots.</p>
+                </section>
+              )}
+
+              {finance && (
+                <section className="finance-card" aria-labelledby="finance-heading">
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">Plan-bound scenario</p>
+                      <h2 id="finance-heading">Finance projection</h2>
+                    </div>
+                    <span className="quality-pill">Estimated wages · low confidence</span>
+                  </div>
+
+                  <div className="finance-facts">
+                    <div><small>Current cash</small><strong>{money(finance.factual?.cash_balance ?? null)}</strong></div>
+                    <div><small>Current weekly player costs</small><strong>{money(finance.factual?.player_wages ?? null)}</strong></div>
+                    <div><small>Current sponsor income</small><strong>{money(finance.factual?.sponsor_income ?? null)}</strong></div>
+                    <div><small>Current arena</small><strong>{finance.arena ? `${finance.arena.arena_name} · ${finance.arena.total.toLocaleString()}` : 'Unknown'}</strong></div>
+                  </div>
+
+                  <p className="formula-note">
+                    Current facts are frozen to sync #{plan.starting_sync_run_id}. Assumptions and projections do not alter imported CHPP data.
+                  </p>
+
+                  <div className="finance-settings">
+                    <label>Assumption: starting cash override<input aria-label="Starting cash override" type="number" value={finance.assumptions.starting_cash_override ?? ''} placeholder={String(finance.factual?.cash_balance ?? '')} onChange={(event) => updateAssumption('starting_cash_override', event.target.value)} /></label>
+                    <label>Assumption: sponsor override<input aria-label="Sponsor income override" type="number" min="0" value={finance.assumptions.sponsor_income_override ?? ''} placeholder={String(finance.factual?.sponsor_income ?? '')} onChange={(event) => updateAssumption('sponsor_income_override', event.target.value)} /></label>
+                    <label>Assumption: staff-cost override<input aria-label="Staff cost override" type="number" min="0" value={finance.assumptions.staff_cost_override ?? ''} placeholder={String(finance.factual?.staff_costs ?? '')} onChange={(event) => updateAssumption('staff_cost_override', event.target.value)} /></label>
+                    <label>Assumption: youth-cost override<input aria-label="Youth cost override" type="number" min="0" value={finance.assumptions.youth_cost_override ?? ''} placeholder={String(finance.factual?.youth_costs ?? '')} onChange={(event) => updateAssumption('youth_cost_override', event.target.value)} /></label>
+                    <label>Assumption: arena-cost override<input aria-label="Arena cost override" type="number" min="0" value={finance.assumptions.arena_cost_override ?? ''} placeholder={String(finance.factual?.arena_costs ?? '')} onChange={(event) => updateAssumption('arena_cost_override', event.target.value)} /></label>
+                    <label>Assumption: home-match revenue<input aria-label="Expected home match revenue" type="number" min="0" value={finance.assumptions.expected_home_match_revenue ?? ''} onChange={(event) => updateAssumption('expected_home_match_revenue', event.target.value)} /></label>
+                    <label>Assumption: weeks to season boundary<input aria-label="Weeks until season boundary" type="number" min="0" value={finance.assumptions.weeks_until_season_boundary ?? ''} onChange={(event) => updateAssumption('weeks_until_season_boundary', event.target.value)} /></label>
+                    <label>Assumption: sponsor after boundary<input aria-label="Sponsor income after boundary" type="number" min="0" value={finance.assumptions.sponsor_income_after_boundary ?? ''} onChange={(event) => updateAssumption('sponsor_income_after_boundary', event.target.value)} /></label>
+                  </div>
+                  <div className="finance-actions">
+                    <button className="secondary-button" disabled={busy} onClick={() => void saveFinanceAssumptions()}>Save assumptions</button>
+                    <button className="primary-button" disabled={busy || plan.blocks.length === 0} onClick={() => void runFinanceProjection()}>Project finances</button>
+                  </div>
+
+                  <div className="fixture-note">
+                    <strong>Current fixtures:</strong> {finance.fixtures.length || 'none'} imported; only home fixtures receive the user-entered revenue assumption.
+                  </div>
+
+                  {financeProjection && (
+                    <div className="finance-results">
+                      <div className="finance-facts projected">
+                        <div><small>Projected final cash</small><strong>{money(financeProjection.final_cash)}</strong></div>
+                        <div><small>Projected final weekly wages</small><strong>{money(financeProjection.final_weekly_wages)}</strong></div>
+                        <div><small>Projected operating cash flow</small><strong>{money(financeProjection.operating_cash_flow_total)}</strong></div>
+                        <div><small>Projected capital cash flow</small><strong>{money(financeProjection.capital_cash_flow_total)}</strong></div>
+                      </div>
+                      <div className="table-scroll"><table className="finance-table"><thead><tr><th>Week</th><th>Estimated wages</th><th>Sponsor</th><th>Match income</th><th>Fixed costs</th><th>Cash flow</th><th>Projected cash</th></tr></thead><tbody>{financeProjection.weekly_rows.map((row) => <tr key={row.week}><th>{row.week}</th><td>{money(row.squad_wages)}</td><td>{money(row.sponsor_income)}</td><td>{money(row.match_income)}</td><td>{money(row.fixed_costs)}</td><td>{money(row.total_cash_flow)}</td><td>{money(row.ending_cash)}</td></tr>)}</tbody></table></div>
+                      <ul className="uncertainty-list">{financeProjection.uncertainty_notes.map((note) => <li key={note}>{note}</li>)}</ul>
+                      <p className="formula-note">Wage model: {financeProjection.wage_model_version} ({financeProjection.wage_model_quality}). This is an approximation, not Hattrick's private formula.</p>
+                    </div>
+                  )}
                 </section>
               )}
             </>
