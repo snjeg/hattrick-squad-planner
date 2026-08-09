@@ -34,6 +34,8 @@ from app.plan_services import (
     update_training_block,
     update_training_plan,
 )
+from app.roster_scenario import RosterScenarioValidationError
+from app.roster_scenario_services import evaluate_plan_roster_scenarios
 from app.schemas import (
     AuthStartResponse,
     CHPPStatusResponse,
@@ -43,11 +45,13 @@ from app.schemas import (
     FixtureAttendanceUpdate,
     HealthResponse,
     PlanFinanceResponse,
+    PlanRosterScenarioRequest,
     PlanSquadEvaluationRequest,
     PlanSquadEvaluationResponse,
     PlanTeamRatingRequest,
     PlanTeamRatingResponse,
     PlayerContributionAnalysisResponse,
+    RosterScenarioEvaluationResponse,
     SimulationResponse,
     SquadEvaluationCalculateRequest,
     SquadEvaluationResponse,
@@ -74,7 +78,7 @@ from app.team_rating_services import evaluate_plan_team_rating, evaluate_supplie
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-app = FastAPI(title="Hattrick Squad Planner API", version="0.6.0")
+app = FastAPI(title="Hattrick Squad Planner API", version="0.7.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
@@ -95,6 +99,7 @@ def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
 @app.exception_handler(ContributionValidationError)
 @app.exception_handler(TeamRatingValidationError)
 @app.exception_handler(SquadEvaluationValidationError)
+@app.exception_handler(RosterScenarioValidationError)
 def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(error)})
 
@@ -276,6 +281,18 @@ def calculate_plan_squad_evaluation(
     payload: PlanSquadEvaluationRequest,
 ) -> PlanSquadEvaluationResponse:
     return evaluate_plan_squad(session, plan_id, payload)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/roster-scenarios/evaluate",
+    response_model=RosterScenarioEvaluationResponse,
+)
+def calculate_plan_roster_scenarios(
+    session: SessionDependency,
+    plan_id: int,
+    payload: PlanRosterScenarioRequest,
+) -> RosterScenarioEvaluationResponse:
+    return evaluate_plan_roster_scenarios(session, plan_id, payload)
 
 
 @app.patch("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)

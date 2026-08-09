@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { formatAge, formatProjectedSkill } from './format'
+import RosterScenarios from './RosterScenarios'
 import type {
   FinanceAssumptions,
   FinanceProjection,
@@ -763,6 +764,13 @@ function TrainingPlans() {
                   })()}
                 </div>}
               </section>
+
+              <RosterScenarios
+                plan={plan}
+                roles={squadRoles}
+                profile={squadProfile}
+                context={teamContext}
+              />
 
               {finance && (
                 <section className="finance-card" aria-labelledby="finance-heading">

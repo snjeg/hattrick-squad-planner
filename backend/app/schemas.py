@@ -9,6 +9,11 @@ from app.contribution.types import (
     PositionRole,
     PositionSide,
 )
+from app.roster_scenario.types import (
+    PlayerSource,
+    TransitionType,
+    WageSource,
+)
 from app.squad_evaluation.types import (
     EvaluationProfile,
     SquadPlanningRole,
@@ -700,3 +705,212 @@ class FinanceProjectionResponse(BaseModel):
     total_cash_flow: int
     assumptions: FinanceAssumptionsResponse
     uncertainty_notes: list[str]
+
+
+class RosterTransferValueRequest(BaseModel):
+    low: int | None = Field(default=None, ge=0)
+    base: int = Field(ge=0)
+    high: int | None = Field(default=None, ge=0)
+    confidence: str = Field(default="user_assumption", max_length=80)
+    source_note: str | None = Field(default=None, max_length=500)
+
+
+class HypotheticalBlockAssignmentRequest(BaseModel):
+    block_id: int
+    appearances: list[TrainingAppearanceInput] = Field(default_factory=list)
+    is_set_piece_taker: bool = False
+
+
+class HypotheticalPlayerRequest(BaseModel):
+    hypothetical_id: str = Field(pattern=r"^hyp:[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+    label: str = Field(min_length=1, max_length=120)
+    age_years: int = Field(ge=17)
+    age_days: int = Field(ge=0, le=111)
+    state: SuppliedPlayerMatchState
+    nationality: int | None = Field(default=None, ge=1)
+    is_foreign: bool
+    wage_override: int | None = Field(default=None, ge=0)
+    planning_role: SquadPlanningRole
+    allowed_positions: list[PositionRole] | None = None
+    preferred_positions: list[PositionRole] = Field(default_factory=list)
+    block_assignments: list[HypotheticalBlockAssignmentRequest] = Field(
+        default_factory=list
+    )
+    source_note: str | None = Field(default=None, max_length=500)
+
+
+class RosterTransitionRequest(BaseModel):
+    transition_id: str = Field(min_length=1, max_length=80)
+    transition_type: TransitionType
+    effective_checkpoint: str = Field(min_length=1, max_length=80)
+    player_id: int | None = None
+    hypothetical_id: str | None = None
+    transfer_value: RosterTransferValueRequest | None = None
+    transfer_costs: int = Field(default=0, ge=0)
+    new_role: SquadPlanningRole | None = None
+    note: str | None = Field(default=None, max_length=500)
+
+
+class RosterScenarioConstraintsRequest(BaseModel):
+    minimum_cash_reserve: int | None = Field(default=None, ge=0)
+    max_transfer_spend: int | None = Field(default=None, ge=0)
+    max_net_transfer_spend: int | None = Field(default=None, ge=0)
+
+
+class RosterScenarioDefinitionRequest(BaseModel):
+    scenario_id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    transitions: list[RosterTransitionRequest]
+    hypothetical_players: list[HypotheticalPlayerRequest] = Field(default_factory=list)
+    constraints: RosterScenarioConstraintsRequest = Field(
+        default_factory=RosterScenarioConstraintsRequest
+    )
+    retention_intent: dict[str, str] = Field(default_factory=dict)
+
+
+class PlanRosterScenarioRequest(BaseModel):
+    members: list[PlanSquadMemberRequest]
+    scenarios: list[RosterScenarioDefinitionRequest]
+    profiles: list[EvaluationProfile] = Field(
+        default_factory=lambda: [EvaluationProfile.BALANCED]
+    )
+    context: TeamRatingContextRequest
+    search: SquadSearchConfigurationRequest = Field(
+        default_factory=SquadSearchConfigurationRequest
+    )
+
+
+class PriceCaseAmountsResponse(BaseModel):
+    low: int
+    base: int
+    high: int
+
+
+class AppliedRosterTransitionResponse(BaseModel):
+    transition_id: str
+    transition_type: TransitionType
+    player_key: str
+    label: str
+    cash_flow: PriceCaseAmountsResponse
+    note: str | None
+
+
+class RosterFinanceSnapshotResponse(BaseModel):
+    opening_cash: PriceCaseAmountsResponse
+    operating_cash_flow: int
+    transfer_cash_flow: PriceCaseAmountsResponse
+    closing_cash: PriceCaseAmountsResponse
+    weekly_wages: int
+    cumulative_transfer_balance: PriceCaseAmountsResponse
+    cumulative_transfer_spend: PriceCaseAmountsResponse
+
+
+class TrainingCapacitySnapshotResponse(BaseModel):
+    meaningful_capacity: int
+    beneficiaries: int
+    unused_capacity: int
+    full: int
+    partial: int
+    osmosis: int
+    bonus: int
+    mixed: int
+
+
+class CoverageGapResponse(BaseModel):
+    role: str
+    severity: str
+    detail: str
+
+
+class ScenarioMetricsResponse(BaseModel):
+    composite_score: float | None
+    peak_strength: float | None
+    depth: float | None
+    flexibility: float | None
+    rotation: float | None
+    weekly_wages: int
+    cash: PriceCaseAmountsResponse
+    roster_size: int
+    training_beneficiaries: int
+    unused_training_capacity: int
+
+
+class ScenarioDeltaResponse(ScenarioMetricsResponse):
+    pass
+
+
+class TransitionImpactResponse(BaseModel):
+    transition_id: str
+    transition_type: TransitionType
+    player_key: str
+    competitive_delta: float | None
+    replacement_drop: float | None
+    role_depth_delta: int | None
+    training_slot_delta: int
+    weekly_wage_delta: int
+    capital_delta: PriceCaseAmountsResponse
+    lineup_participation: bool | None
+    lineup_formation: str | None
+    replacement_formation: str | None
+    useful_assignments: list[str]
+    contribution_surface: dict[str, float]
+    evidence: list[str]
+
+
+class ScenarioRosterPlayerResponse(BaseModel):
+    player_key: str
+    name: str
+    source: PlayerSource
+    source_quality: str
+    planning_role: SquadPlanningRole
+    weekly_wage: int
+    wage_source: WageSource
+    training_participation: TrainingParticipation
+    is_foreign: bool
+
+
+class RosterScenarioCheckpointResponse(BaseModel):
+    checkpoint_id: str
+    label: str
+    order: int
+    block_id: int | None
+    block_order: int | None
+    week: int
+    roster_before: list[str]
+    transitions_applied: list[AppliedRosterTransitionResponse]
+    roster_after: list[str]
+    roster_players: list[ScenarioRosterPlayerResponse]
+    evaluation: SquadEvaluationResponse | None
+    finance: RosterFinanceSnapshotResponse
+    training: TrainingCapacitySnapshotResponse
+    role_distribution: dict[SquadPlanningRole, int]
+    coverage_gaps: list[CoverageGapResponse]
+    metrics: ScenarioMetricsResponse
+    delta_vs_baseline: ScenarioDeltaResponse | None
+    transition_impacts: list[TransitionImpactResponse]
+    warnings: list[str]
+
+
+class RosterScenarioResultResponse(BaseModel):
+    scenario_id: str
+    name: str
+    checkpoints: list[RosterScenarioCheckpointResponse]
+    constraint_violations: list[str]
+    warnings: list[str]
+    model_version: str
+
+
+class RosterScenarioEvaluationResponse(BaseModel):
+    plan_id: int
+    baseline: RosterScenarioResultResponse
+    scenarios: list[RosterScenarioResultResponse]
+    model_version: str
+    source_labels: dict[str, str] = Field(
+        default_factory=lambda: {
+            PlayerSource.FACTUAL.value: "Current",
+            PlayerSource.HYPOTHETICAL.value: "Assumption / Hypothetical",
+            WageSource.FACTUAL.value: "Current",
+            WageSource.SUPPLIED_ASSUMPTION.value: "Assumption",
+            WageSource.MODEL_ESTIMATE.value: "Community estimate",
+        }
+    )

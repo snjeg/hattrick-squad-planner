@@ -4,6 +4,27 @@ This file records product and architectural decisions that materially affect fut
 
 ---
 
+## 2026-08-10 - Roster scenarios return evidence, not action policy
+
+**Decision:** Milestone 7 represents sales, purchases, and planning-role changes as explicit
+checkpoint transitions. It evaluates the resulting squad, wages, aggregate training capacity,
+and low/base/high manual transfer cash against a synthetic no-transition baseline. It does not
+rank scenarios or infer Keep/Sell/Buy labels.
+
+**Reason:** The application must be able to explain that a sale has little modeled competitive
+cost, saves wages, frees capacity, and raises assumed capital without silently turning those
+facts into a recommendation. Recommendation policy belongs to Milestone 8.
+
+**Consequence:** Transitions run after a completed block in deterministic sell/buy/role order;
+their wage effects apply to the following period. Hypothetical players are scenario-local,
+complete labeled assumptions. Operating and transfer cash remain separate, and existing
+bounded-search/wage uncertainty is preserved in outputs.
+
+**Revisit:** Milestone 8 may add versioned objective weights and recommendation history, but it
+must consume these scenario primitives rather than bypass their timing and accounting rules.
+
+---
+
 ## 2026-08-09 — Squad quality is decomposed and search-bounded
 
 **Decision:** Milestone 6B evaluates the whole squad through deterministic bounded candidate

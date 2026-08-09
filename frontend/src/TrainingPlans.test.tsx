@@ -4,6 +4,7 @@ import { api } from './api'
 import TrainingPlans from './TrainingPlans'
 import type {
   PlanFinance,
+  RosterScenarioEvaluation,
   PlanSquadEvaluation,
   GeneratedLineup,
   PlayerContributionAnalysis,
@@ -28,6 +29,7 @@ vi.mock('./api', () => ({
     analyzeContributions: vi.fn(),
     evaluateTeamRating: vi.fn(),
     evaluateSquad: vi.fn(),
+    evaluateRosterScenarios: vi.fn(),
     planFinance: vi.fn(),
     saveFinanceAssumptions: vi.fn(),
     saveFixtureAttendance: vi.fn(),
@@ -270,6 +272,64 @@ const squadEvaluation = {
   }],
 } satisfies PlanSquadEvaluation
 
+const rosterScenarioEvaluation = {
+  plan_id: 1,
+  model_version: 'roster-scenario-v1',
+  source_labels: { hypothetical: 'Assumption / Hypothetical' },
+  baseline: {
+    scenario_id: 'baseline', name: 'Keep current squad through the plan',
+    checkpoints: [], constraint_violations: [], warnings: [], model_version: 'roster-scenario-v1',
+  },
+  scenarios: [{
+    scenario_id: 'scenario-1', name: 'Sale scenario',
+    constraint_violations: [], warnings: ['Evidence only.'], model_version: 'roster-scenario-v1',
+    checkpoints: [{
+      checkpoint_id: 'current', label: 'Current', order: 0, block_id: null,
+      block_order: null, week: 0, roster_before: ['player:100001'], roster_after: [],
+      roster_players: [],
+      transitions_applied: [{
+        transition_id: 'sell-1', transition_type: 'sell', player_key: 'player:100001',
+        label: 'Marek Novak', cash_flow: { low: 400000, base: 500000, high: 600000 }, note: null,
+      }],
+      finance: {
+        opening_cash: { low: 850000, base: 850000, high: 850000 },
+        operating_cash_flow: 0,
+        transfer_cash_flow: { low: 400000, base: 500000, high: 600000 },
+        closing_cash: { low: 1250000, base: 1350000, high: 1450000 },
+        weekly_wages: 0,
+        cumulative_transfer_balance: { low: 400000, base: 500000, high: 600000 },
+        cumulative_transfer_spend: { low: 0, base: 0, high: 0 },
+      },
+      training: {
+        meaningful_capacity: 6, beneficiaries: 0, unused_capacity: 6,
+        full: 0, partial: 0, osmosis: 0, bonus: 0, mixed: 0,
+      },
+      metrics: {
+        composite_score: null, peak_strength: null, depth: null, flexibility: null,
+        rotation: null, weekly_wages: 0, cash: { low: 1250000, base: 1350000, high: 1450000 },
+        roster_size: 0, training_beneficiaries: 0, unused_training_capacity: 6,
+      },
+      delta_vs_baseline: {
+        composite_score: -0.1, peak_strength: -0.1, depth: -0.2, flexibility: 0,
+        rotation: -0.1, weekly_wages: -20000,
+        cash: { low: 400000, base: 500000, high: 600000 }, roster_size: -1,
+        training_beneficiaries: -1, unused_training_capacity: 1,
+      },
+      transition_impacts: [{
+        transition_id: 'sell-1', transition_type: 'sell', player_key: 'player:100001',
+        competitive_delta: -0.1, replacement_drop: 0.001, role_depth_delta: -1,
+        training_slot_delta: 1, weekly_wage_delta: -20000,
+        capital_delta: { low: 400000, base: 500000, high: 600000 },
+        lineup_participation: true, lineup_formation: '4-4-2',
+        replacement_formation: '4-5-1', useful_assignments: ['inner_midfielder:normal'],
+        contribution_surface: { midfield: 1.2 },
+        evidence: ['Evidence, not advice.'],
+      }],
+      coverage_gaps: [], warnings: [],
+    }],
+  }],
+} satisfies RosterScenarioEvaluation
+
 describe('manual training plans', () => {
   afterEach(cleanup)
 
@@ -295,6 +355,7 @@ describe('manual training plans', () => {
     vi.mocked(api.saveFinanceAssumptions).mockResolvedValue(savedFinance)
     vi.mocked(api.analyzeContributions).mockResolvedValue(contributionAnalysis)
     vi.mocked(api.evaluateSquad).mockResolvedValue(squadEvaluation)
+    vi.mocked(api.evaluateRosterScenarios).mockResolvedValue(rosterScenarioEvaluation)
   })
 
   it('opens a saved plan and shows backend-calculated training eligibility', async () => {
@@ -371,6 +432,24 @@ describe('manual training plans', () => {
     expect(screen.getAllByText(/Global optimality is not claimed/i)).toHaveLength(2)
     expect(api.evaluateSquad).toHaveBeenCalledWith(1, expect.objectContaining({
       checkpoint: 'all', profiles: ['balanced'],
+    }))
+  })
+
+  it('compares explicit roster transitions without issuing a sell recommendation', async () => {
+    render(<TrainingPlans />)
+    fireEvent.click(await screen.findByRole('button', { name: /Saved manual plan/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Roster Scenarios' })).toBeInTheDocument()
+    expect(screen.getByText(/never turn those facts into an automatic Keep, Sell, or Buy/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Compare with baseline' }))
+
+    expect(await screen.findByText('Transition evidence')).toBeInTheDocument()
+    expect(screen.getByText('0.001')).toBeInTheDocument()
+    expect(screen.getByText('No recommendation')).toBeInTheDocument()
+    expect(api.evaluateRosterScenarios).toHaveBeenCalledWith(1, expect.objectContaining({
+      scenarios: [expect.objectContaining({
+        transitions: [expect.objectContaining({ transition_type: 'sell' })],
+      })],
     }))
   })
 })
