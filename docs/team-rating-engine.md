@@ -81,6 +81,24 @@ the calculation boundary; labels are presentation.
 at `current`, `after_block` (with `block_id`), or `final`. Simulation remains in memory and
 the adapter never mutates factual snapshots.
 
+## Full-XI golden references
+
+The suite now contains three immutable full-XI references. The two additional pre-merge
+cases in `backend/tests/fixtures/ho_team_rating_full_xi.json` were calculated with a standalone audit
+transcription of the pinned HO Java path that imports no application modules; production
+tests consume only the captured inputs and seven expected outputs.
+
+- A home 3-5-2 uses Play it Cool, team spirit 8.25, three inner midfielders (therefore the
+  0.825 factor), several non-normal orders, a technical defensive forward, and eleven
+  deliberately different skill profiles.
+- An away 5-4-1 uses coach style -7, confidence 3, Attack in the Middle, three central
+  defenders, and different player profiles/orders. It exercises both the coach curves and
+  the verified 0.85 side-defense tactic modifier.
+
+Every case compares all seven final continuous ratings at `1e-10` absolute tolerance. The
+fixture records the HO repository, commit, source class, capture method, complete normalized
+inputs, and outputs so future formula audits can reproduce or replace it explicitly.
+
 ## Deferred and uncertain mechanics
 
 - HO match-average team ratings recalculate the full team through time, applying stamina

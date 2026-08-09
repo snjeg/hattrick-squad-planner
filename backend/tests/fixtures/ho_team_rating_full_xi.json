@@ -1,0 +1,120 @@
+{
+  "reference": {
+    "repository": "https://github.com/ho-dev/HattrickOrganizer",
+    "commit": "b58f36e2eecc98ba14d88be49c3042c575698134",
+    "source": "core/rating/RatingPredictionModel.java",
+    "capture_method": "Independent standalone transcription with no application imports",
+    "tolerance": 1e-10
+  },
+  "player_defaults": {
+    "goalkeeper": 3.0,
+    "defending": 6.0,
+    "playmaking": 6.0,
+    "winger": 6.0,
+    "passing": 6.0,
+    "scoring": 6.0,
+    "set_pieces": 5.0,
+    "stamina": 7.0,
+    "form": 7.0,
+    "experience": 6.0,
+    "loyalty": 15.0,
+    "mother_club": false,
+    "specialty": 0
+  },
+  "cases": [
+    {
+      "name": "home_pic_352_three_inner_midfielders",
+      "context": {
+        "team_spirit": 8.25,
+        "confidence": 6,
+        "coach_style": 0,
+        "attitude": "play_it_cool",
+        "location": "home",
+        "tactic": "normal",
+        "weather": "overcast"
+      },
+      "players": [
+        {"player_id": 101, "overrides": {"goalkeeper": 12.3, "defending": 7.4, "form": 7, "experience": 8, "loyalty": 20}},
+        {"player_id": 102, "overrides": {"defending": 10.2, "playmaking": 6.3, "winger": 8.8, "form": 6, "experience": 5, "loyalty": 12}},
+        {"player_id": 103, "overrides": {"defending": 11.4, "playmaking": 7.2, "winger": 4.1, "form": 8, "experience": 9, "loyalty": 18}},
+        {"player_id": 104, "overrides": {"defending": 8.9, "playmaking": 5.5, "winger": 11.3, "form": 7, "experience": 4, "loyalty": 9}},
+        {"player_id": 105, "overrides": {"defending": 5.0, "playmaking": 9.2, "winger": 12.1, "passing": 8.4, "form": 6, "experience": 7}},
+        {"player_id": 106, "overrides": {"defending": 7.5, "playmaking": 13.2, "winger": 5.4, "passing": 9.5, "scoring": 6.2, "form": 8, "experience": 10, "mother_club": true, "loyalty": 0}},
+        {"player_id": 107, "overrides": {"defending": 10.1, "playmaking": 11.7, "passing": 7.8, "scoring": 5.5, "form": 7, "experience": 8, "loyalty": 20}},
+        {"player_id": 108, "overrides": {"defending": 6.8, "playmaking": 12.4, "winger": 9.7, "passing": 8.2, "scoring": 7.0, "form": 6, "experience": 6, "loyalty": 13}},
+        {"player_id": 109, "overrides": {"defending": 6.2, "playmaking": 10.8, "winger": 10.3, "passing": 9.1, "form": 7, "experience": 5, "loyalty": 17}},
+        {"player_id": 110, "overrides": {"playmaking": 6.3, "winger": 5.5, "passing": 12.4, "scoring": 10.7, "form": 8, "experience": 11, "loyalty": 20, "specialty": 1}},
+        {"player_id": 111, "overrides": {"playmaking": 5.8, "winger": 10.9, "passing": 8.5, "scoring": 13.1, "form": 7, "experience": 7, "loyalty": 11}}
+      ],
+      "lineup": [
+        {"player_id": 101, "position": "goalkeeper", "side": "center", "order": "normal"},
+        {"player_id": 102, "position": "wingback", "side": "left", "order": "offensive"},
+        {"player_id": 103, "position": "central_defender", "side": "center", "order": "offensive"},
+        {"player_id": 104, "position": "wingback", "side": "right", "order": "defensive"},
+        {"player_id": 105, "position": "winger", "side": "left", "order": "offensive"},
+        {"player_id": 106, "position": "inner_midfielder", "side": "left", "order": "normal"},
+        {"player_id": 107, "position": "inner_midfielder", "side": "center", "order": "defensive"},
+        {"player_id": 108, "position": "inner_midfielder", "side": "right", "order": "towards_wing"},
+        {"player_id": 109, "position": "winger", "side": "right", "order": "towards_middle"},
+        {"player_id": 110, "position": "forward", "side": "left", "order": "defensive"},
+        {"player_id": 111, "position": "forward", "side": "right", "order": "towards_wing"}
+      ],
+      "expected": {
+        "midfield": 9.806602291870327,
+        "left_defense": 9.259097421225194,
+        "central_defense": 10.359840570482438,
+        "right_defense": 10.177191598998233,
+        "left_attack": 11.642088109068617,
+        "central_attack": 9.473591167747585,
+        "right_attack": 14.672134555958944
+      }
+    },
+    {
+      "name": "defensive_coach_541_attack_in_middle",
+      "context": {
+        "team_spirit": 4.75,
+        "confidence": 3,
+        "coach_style": -7,
+        "attitude": "normal",
+        "location": "away",
+        "tactic": "attack_in_middle",
+        "weather": "overcast"
+      },
+      "players": [
+        {"player_id": 201, "overrides": {"goalkeeper": 10.6, "defending": 8.2, "form": 6, "experience": 7, "loyalty": 20}},
+        {"player_id": 202, "overrides": {"defending": 11.2, "playmaking": 5.4, "winger": 6.8, "form": 7, "experience": 8}},
+        {"player_id": 203, "overrides": {"defending": 12.6, "playmaking": 5.2, "winger": 4.0, "form": 8, "experience": 10}},
+        {"player_id": 204, "overrides": {"defending": 10.8, "playmaking": 8.6, "winger": 4.7, "form": 6, "experience": 6, "loyalty": 10}},
+        {"player_id": 205, "overrides": {"defending": 9.7, "playmaking": 5.8, "winger": 9.9, "form": 7, "experience": 5}},
+        {"player_id": 206, "overrides": {"defending": 8.5, "playmaking": 6.1, "winger": 10.8, "form": 7, "experience": 7}},
+        {"player_id": 207, "overrides": {"defending": 6.4, "playmaking": 8.9, "winger": 11.8, "passing": 7.1, "form": 8, "experience": 6}},
+        {"player_id": 208, "overrides": {"defending": 7.7, "playmaking": 12.8, "passing": 9.2, "scoring": 7.4, "form": 7, "experience": 9}},
+        {"player_id": 209, "overrides": {"defending": 9.4, "playmaking": 11.3, "passing": 8.1, "scoring": 5.9, "form": 6, "experience": 8}},
+        {"player_id": 210, "overrides": {"defending": 5.7, "playmaking": 9.8, "winger": 10.5, "passing": 8.8, "form": 7, "experience": 5}},
+        {"player_id": 211, "overrides": {"playmaking": 6.2, "winger": 7.8, "passing": 10.1, "scoring": 12.5, "form": 8, "experience": 10, "mother_club": true}}
+      ],
+      "lineup": [
+        {"player_id": 201, "position": "goalkeeper", "side": "center", "order": "normal"},
+        {"player_id": 202, "position": "wingback", "side": "left", "order": "defensive"},
+        {"player_id": 203, "position": "central_defender", "side": "left", "order": "normal"},
+        {"player_id": 204, "position": "central_defender", "side": "center", "order": "offensive"},
+        {"player_id": 205, "position": "central_defender", "side": "right", "order": "towards_wing"},
+        {"player_id": 206, "position": "wingback", "side": "right", "order": "offensive"},
+        {"player_id": 207, "position": "winger", "side": "left", "order": "defensive"},
+        {"player_id": 208, "position": "inner_midfielder", "side": "left", "order": "offensive"},
+        {"player_id": 209, "position": "inner_midfielder", "side": "right", "order": "defensive"},
+        {"player_id": 210, "position": "winger", "side": "right", "order": "offensive"},
+        {"player_id": 211, "position": "forward", "side": "center", "order": "normal"}
+      ],
+      "expected": {
+        "midfield": 5.745064315956873,
+        "left_defense": 12.313460795645637,
+        "central_defense": 14.507678291262899,
+        "right_defense": 9.983437527070532,
+        "left_attack": 6.3806302295923505,
+        "central_attack": 6.207588970169482,
+        "right_attack": 8.305960148423953
+      }
+    }
+  ]
+}

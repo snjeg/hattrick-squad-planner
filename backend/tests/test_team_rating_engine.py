@@ -1,3 +1,7 @@
+import json
+from pathlib import Path
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -33,6 +37,40 @@ from app.team_rating.types import (
     TeamRatingValidationError,
     TeamTactic,
 )
+
+GOLDEN_FIXTURE = Path(__file__).parent / "fixtures" / "ho_team_rating_full_xi.json"
+
+
+def _golden_data() -> dict[str, Any]:
+    return json.loads(GOLDEN_FIXTURE.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
+
+
+def _golden_lineup(case: dict[str, Any], defaults: dict[str, Any]) -> tuple[LineupPlayer, ...]:
+    players = {
+        item["player_id"]: PlayerMatchState(**(defaults | item["overrides"]))
+        for item in case["players"]
+    }
+    return tuple(
+        LineupPlayer(
+            item["player_id"],
+            players[item["player_id"]],
+            PositionSlot(Role(item["position"]), Side(item["side"])),
+            Order(item["order"]),
+        )
+        for item in case["lineup"]
+    )
+
+
+def _golden_context(values: dict[str, Any]) -> TeamRatingContext:
+    return TeamRatingContext(
+        team_spirit=values["team_spirit"],
+        confidence=values["confidence"],
+        coach_style=values["coach_style"],
+        attitude=MatchAttitude(values["attitude"]),
+        location=MatchLocation(values["location"]),
+        tactic=TeamTactic(values["tactic"]),
+        weather=MatchWeather(values["weather"]),
+    )
 
 
 def state(**changes: object) -> PlayerMatchState:
@@ -124,6 +162,35 @@ def test_selected_442_golden_reference_matches_pinned_ho_call_path() -> None:
     assert result.sectors[Sector.CENTRAL_ATTACK].displayed.value == pytest.approx(
         7.81844015371245, abs=1e-10
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    _golden_data()["cases"],
+    ids=lambda case: case["name"],
+)
+def test_independent_full_xi_golden_references_match_all_seven_ho_sectors(
+    case: dict[str, Any],
+) -> None:
+    """Compare immutable values captured outside the application from pinned HO formulas."""
+    fixture = _golden_data()
+    assert fixture["reference"]["commit"] == "b58f36e2eecc98ba14d88be49c3042c575698134"
+    result = calculate_team_rating(
+        _golden_lineup(case, fixture["player_defaults"]),
+        _golden_context(case["context"]),
+    )
+    for sector in Sector:
+        assert result.sectors[sector].displayed.value == pytest.approx(
+            case["expected"][sector.value], abs=fixture["reference"]["tolerance"]
+        )
+
+    if case["name"] == "home_pic_352_three_inner_midfielders":
+        assert result.formation == "3-5-2"
+        assert {result.overcrowding_factors[player_id] for player_id in (106, 107, 108)} == {
+            0.825
+        }
+    else:
+        assert result.formation == "5-4-1"
 
 
 def test_overcrowding_is_before_experience_and_only_central_groups() -> None:
