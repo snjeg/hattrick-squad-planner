@@ -2,6 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.contribution.types import (
+    IndividualOrder,
+    MatchWeather,
+    PositionRole,
+    PositionSide,
+)
 from app.training.types import CoachLevel, Position, Skill, TrainingType
 
 
@@ -220,6 +226,56 @@ class SimulationResponse(BaseModel):
     total_weeks: int
     players: list[PlayerProjectionResponse]
     weekly_results: list[WeeklyResultResponse] | None
+
+
+class ContributionAnalysisRequest(BaseModel):
+    position: PositionRole
+    side: PositionSide
+    order: IndividualOrder
+    weather: MatchWeather = MatchWeather.OVERCAST
+
+
+class ContributionVectorResponse(BaseModel):
+    midfield: float
+    left_defense: float
+    central_defense: float
+    right_defense: float
+    left_attack: float
+    central_attack: float
+    right_attack: float
+
+
+class ContributionCheckpointResponse(BaseModel):
+    label: str
+    stage: str
+    block_id: int | None
+    block_order: int | None
+    starting: ContributionVectorResponse
+    effective_skills: dict[str, float]
+
+
+class ContributionModifiersResponse(BaseModel):
+    form_factor: float
+    loyalty_bonus: float
+    mother_club_bonus_applied: bool
+    starting_stamina_factor: float
+    weather_factor: float
+
+
+class PlayerContributionAnalysisResponse(BaseModel):
+    plan_id: int
+    player_id: int
+    player: str
+    position: PositionRole
+    side: PositionSide
+    order: IndividualOrder
+    weather: MatchWeather
+    model_version: str
+    model_quality: str
+    checkpoints: list[ContributionCheckpointResponse]
+    final_change: ContributionVectorResponse
+    modifiers: ContributionModifiersResponse
+    uncertainty_notes: list[str]
 
 
 class FinanceAssumptionsUpdate(BaseModel):

@@ -128,6 +128,17 @@ input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0
 .results-table .skill-up { color: #44714a; font-weight: 700; }
 .projected-value { color: #214f34; background: #f0f6eb; font-weight: 700; }
 .formula-note { margin: 0; padding: 16px 24px; color: #718078; font-size: 12px; }
+.contribution-card { margin: 32px -24px -24px; border-top: 1px solid #d7dacd; background: #fff; }
+.contribution-controls { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)) auto; gap: 12px; align-items: end; padding: 8px 24px 22px; }
+.contribution-controls label { display: grid; gap: 6px; color: #617365; font-size: 11px; font-weight: 700; }
+.contribution-controls .primary-button { width: auto; min-width: 170px; padding: 0 14px; }
+.contribution-results { border-top: 1px solid #dce2dc; }
+.contribution-table th:first-child { min-width: 150px; padding-left: 24px; }
+.contribution-table thead th:not(:first-child) { min-width: 130px; vertical-align: bottom; }
+.contribution-table thead .state-badge { margin: 0 auto 5px; }
+.contribution-table .positive-change { color: #245d35; background: #edf6ee; font-weight: 800; }
+.modifier-strip { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 24px 0; }
+.modifier-strip span { padding: 5px 8px; border: 1px solid #cad5cc; border-radius: 3px; color: #40564a; background: #f4f7f4; font-size: 11px; font-weight: 700; }
 .finance-card { margin: 32px -24px -24px; border-top: 1px solid #d7dacd; background: #fffef9; }
 .quality-pill { padding: 6px 9px; border: 1px solid #dbc57d; border-radius: 4px; color: #fff7d7; background: #5e5122; font-size: 11px; font-weight: 700; }
 .finance-facts { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px; padding: 22px 24px 8px; }
@@ -183,6 +194,8 @@ input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0
   .plan-list-item { min-width: 190px; }
   .settings-grid { grid-template-columns: repeat(2, 1fr); }
   .finance-facts, .finance-settings { grid-template-columns: repeat(2, 1fr); }
+  .contribution-controls { grid-template-columns: repeat(2, 1fr); }
+  .contribution-controls .primary-button { width: 100%; }
   .fixture-controls { grid-template-columns: 1fr; }
 }
 

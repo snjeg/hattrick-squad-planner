@@ -4,7 +4,11 @@ import type {
   FinanceAssumptions,
   FinanceProjection,
   PlanFinance,
+  PlayerContributionAnalysis,
   Position,
+  PositionSide,
+  IndividualOrder,
+  MatchWeather,
   SimulationResponse,
   SquadResponse,
   SyncResponse,
@@ -102,6 +106,24 @@ export const api = {
     request<SimulationResponse>(`/api/training-plans/${planId}/simulate`, {
       method: 'POST',
     }),
+  analyzeContributions: (
+    planId: number,
+    playerId: number,
+    value: {
+      position: Position
+      side: PositionSide
+      order: IndividualOrder
+      weather: MatchWeather
+    },
+  ) =>
+    request<PlayerContributionAnalysis>(
+      `/api/training-plans/${planId}/players/${playerId}/contributions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      },
+    ),
   planFinance: (planId: number) =>
     request<PlanFinance>(`/api/training-plans/${planId}/finance`),
   saveFinanceAssumptions: (planId: number, assumptions: FinanceAssumptions) =>

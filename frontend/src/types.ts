@@ -68,6 +68,56 @@ export type Position =
   | 'inner_midfielder'
   | 'forward'
 
+export type PositionSide = 'left' | 'center' | 'right'
+export type MatchWeather = 'sunny' | 'partly_cloudy' | 'overcast' | 'rain'
+
+export type IndividualOrder =
+  | 'normal'
+  | 'defensive'
+  | 'offensive'
+  | 'towards_middle'
+  | 'towards_wing'
+
+export type ContributionSector =
+  | 'midfield'
+  | 'left_defense'
+  | 'central_defense'
+  | 'right_defense'
+  | 'left_attack'
+  | 'central_attack'
+  | 'right_attack'
+
+export type ContributionVector = Record<ContributionSector, number>
+
+export interface PlayerContributionAnalysis {
+  plan_id: number
+  player_id: number
+  player: string
+  position: Position
+  side: PositionSide
+  order: IndividualOrder
+  weather: MatchWeather
+  model_version: string
+  model_quality: string
+  checkpoints: Array<{
+    label: string
+    stage: 'current' | 'projected'
+    block_id: number | null
+    block_order: number | null
+    starting: ContributionVector
+    effective_skills: Record<string, number>
+  }>
+  final_change: ContributionVector
+  modifiers: {
+    form_factor: number
+    loyalty_bonus: number
+    mother_club_bonus_applied: boolean
+    starting_stamina_factor: number
+    weather_factor: number
+  }
+  uncertainty_notes: string[]
+}
+
 export interface TrainingPlanSummary {
   id: number
   name: string

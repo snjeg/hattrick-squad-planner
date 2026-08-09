@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from './api'
 import TrainingPlans from './TrainingPlans'
-import type { PlanFinance, Skill, TrainingPlan } from './types'
+import type { PlanFinance, PlayerContributionAnalysis, Skill, TrainingPlan } from './types'
 
 vi.mock('./api', () => ({
   api: {
@@ -17,6 +17,7 @@ vi.mock('./api', () => ({
     reorderBlocks: vi.fn(),
     saveAssignments: vi.fn(),
     simulatePlan: vi.fn(),
+    analyzeContributions: vi.fn(),
     planFinance: vi.fn(),
     saveFinanceAssumptions: vi.fn(),
     saveFixtureAttendance: vi.fn(),
@@ -129,6 +130,45 @@ const savedFinance: PlanFinance = {
   wage_model_quality: 'approximate-low-confidence',
 }
 
+const contributionAnalysis: PlayerContributionAnalysis = {
+  plan_id: 1,
+  player_id: 100001,
+  player: 'Marek Novak',
+  position: 'inner_midfielder',
+  side: 'center',
+  order: 'normal',
+  weather: 'overcast',
+  model_version: 'ho-test-contribution',
+  model_quality: 'community-reference-high-confidence',
+  checkpoints: [
+    {
+      label: 'Current',
+      stage: 'current',
+      block_id: null,
+      block_order: null,
+      starting: { midfield: 1, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
+      effective_skills: { playmaking: 9 },
+    },
+    {
+      label: 'Final projected',
+      stage: 'projected',
+      block_id: null,
+      block_order: null,
+      starting: { midfield: 1.25, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
+      effective_skills: { playmaking: 9.5 },
+    },
+  ],
+  final_change: { midfield: 0.25, left_defense: 0, central_defense: 0, right_defense: 0, left_attack: 0, central_attack: 0, right_attack: 0 },
+  modifiers: {
+    form_factor: 1,
+    loyalty_bonus: 1.5,
+    mother_club_bonus_applied: true,
+    starting_stamina_factor: 1,
+    weather_factor: 1,
+  },
+  uncertainty_notes: ['Raw player contribution is not a displayed team-sector rating.'],
+}
+
 describe('manual training plans', () => {
   afterEach(cleanup)
 
@@ -152,6 +192,7 @@ describe('manual training plans', () => {
     vi.mocked(api.plan).mockResolvedValue(savedPlan)
     vi.mocked(api.planFinance).mockResolvedValue(savedFinance)
     vi.mocked(api.saveFinanceAssumptions).mockResolvedValue(savedFinance)
+    vi.mocked(api.analyzeContributions).mockResolvedValue(contributionAnalysis)
   })
 
   it('opens a saved plan and shows backend-calculated training eligibility', async () => {
@@ -182,5 +223,22 @@ describe('manual training plans', () => {
     expect(screen.getByText(/low confidence/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Weather for Visitors FC')).toHaveValue('')
     expect(screen.getByText(/Attendance estimate unavailable/)).toBeInTheDocument()
+  })
+
+  it('compares one player contribution without presenting a lineup recommendation', async () => {
+    render(<TrainingPlans />)
+    fireEvent.click(await screen.findByRole('button', { name: /Saved manual plan/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Player contribution' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Calculate contribution' }))
+
+    expect(await screen.findByText('+0.250')).toBeInTheDocument()
+    expect(screen.getByText(/not displayed team ratings or a lineup recommendation/i)).toBeInTheDocument()
+    expect(api.analyzeContributions).toHaveBeenCalledWith(1, 100001, {
+      position: 'inner_midfielder',
+      side: 'center',
+      order: 'normal',
+      weather: 'overcast',
+    })
   })
 })

@@ -4,8 +4,13 @@ import { formatAge, formatProjectedSkill } from './format'
 import type {
   FinanceAssumptions,
   FinanceProjection,
+  ContributionSector,
+  IndividualOrder,
+  MatchWeather,
   PlanFinance,
+  PlayerContributionAnalysis,
   Position,
+  PositionSide,
   SimulationResponse,
   Skill,
   TrainingBlock,
@@ -35,6 +40,23 @@ const positions: Position[] = [
   'inner_midfielder',
   'forward',
 ]
+const contributionSectors: ContributionSector[] = [
+  'midfield',
+  'left_defense',
+  'central_defense',
+  'right_defense',
+  'left_attack',
+  'central_attack',
+  'right_attack',
+]
+const legalOrders: Record<Position, IndividualOrder[]> = {
+  goalkeeper: ['normal'],
+  wingback: ['normal', 'defensive', 'offensive', 'towards_middle'],
+  central_defender: ['normal', 'offensive', 'towards_wing'],
+  winger: ['normal', 'defensive', 'offensive', 'towards_middle'],
+  inner_midfielder: ['normal', 'defensive', 'offensive', 'towards_wing'],
+  forward: ['normal', 'defensive', 'towards_wing'],
+}
 const skillLabels: Record<Skill, string> = {
   goalkeeping: 'GK',
   defending: 'DEF',
@@ -92,6 +114,12 @@ function TrainingPlans() {
   const [simulation, setSimulation] = useState<SimulationResponse | null>(null)
   const [finance, setFinance] = useState<PlanFinance | null>(null)
   const [financeProjection, setFinanceProjection] = useState<FinanceProjection | null>(null)
+  const [contribution, setContribution] = useState<PlayerContributionAnalysis | null>(null)
+  const [contributionPlayerId, setContributionPlayerId] = useState<number | null>(null)
+  const [contributionPosition, setContributionPosition] = useState<Position>('inner_midfielder')
+  const [contributionSide, setContributionSide] = useState<PositionSide>('center')
+  const [contributionOrder, setContributionOrder] = useState<IndividualOrder>('normal')
+  const [contributionWeather, setContributionWeather] = useState<MatchWeather>('overcast')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -157,6 +185,8 @@ function TrainingPlans() {
       setSimulation(null)
       setFinance(loadedFinance)
       setFinanceProjection(null)
+      setContribution(null)
+      setContributionPlayerId(loaded.players[0]?.player_id ?? null)
     } catch (reason) {
       handleError(reason)
     } finally {
@@ -175,6 +205,8 @@ function TrainingPlans() {
       setSimulation(null)
       setFinance(await api.planFinance(created.id))
       setFinanceProjection(null)
+      setContribution(null)
+      setContributionPlayerId(created.players[0]?.player_id ?? null)
       await refreshPlans()
     } catch (reason) {
       handleError(reason)
@@ -240,6 +272,33 @@ function TrainingPlans() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function runContributionAnalysis() {
+    if (!plan || contributionPlayerId === null) return
+    setBusy(true)
+    setError(null)
+    try {
+      setContribution(await api.analyzeContributions(plan.id, contributionPlayerId, {
+        position: contributionPosition,
+        side: contributionSide,
+        order: contributionOrder,
+        weather: contributionWeather,
+      }))
+    } catch (reason) {
+      handleError(reason)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function changeContributionPosition(position: Position) {
+    setContributionPosition(position)
+    setContributionOrder('normal')
+    setContribution(null)
+    setContributionSide(
+      position === 'wingback' || position === 'winger' ? 'left' : 'center',
+    )
   }
 
   function updateAssumption(field: keyof FinanceAssumptions, value: string) {
@@ -454,6 +513,45 @@ function TrainingPlans() {
                   <p className="formula-note">Estimated using {simulation.formula_version}. Projected states are never written to factual player snapshots.</p>
                 </section>
               )}
+
+              <section className="contribution-card" aria-labelledby="contribution-heading">
+                <div className="section-heading">
+                  <div>
+                    <div className="heading-kicker">
+                      <span className="state-badge badge-community">Community estimate</span>
+                      <span>Individual player primitive</span>
+                    </div>
+                    <h2 id="contribution-heading">Player contribution</h2>
+                  </div>
+                  <span className="quality-pill">HO / Schum reference</span>
+                </div>
+                <p className="formula-note">
+                  Compare one player in one role across this plan. Values are verified raw
+                  match-start contributions, not displayed team ratings or a lineup recommendation.
+                  Match-average stamina is deferred because HO applies it after nonlinear rating conversion.
+                </p>
+                <div className="contribution-controls">
+                  <label>Player<select aria-label="Contribution player" value={contributionPlayerId ?? ''} onChange={(event) => { setContributionPlayerId(Number(event.target.value)); setContribution(null) }}>{plan.players.map((player) => <option key={player.player_id} value={player.player_id}>{player.player}</option>)}</select></label>
+                  <label>Position<select aria-label="Contribution position" value={contributionPosition} onChange={(event) => changeContributionPosition(event.target.value as Position)}>{positions.map((position) => <option key={position} value={position}>{label(position)}</option>)}</select></label>
+                  <label>Side<select aria-label="Contribution side" value={contributionSide} onChange={(event) => { setContributionSide(event.target.value as PositionSide); setContribution(null) }} disabled={contributionPosition === 'goalkeeper'}>{(['left', 'center', 'right'] as PositionSide[]).filter((side) => (contributionPosition !== 'wingback' && contributionPosition !== 'winger' || side !== 'center') && (contributionOrder !== 'towards_wing' || side !== 'center')).map((side) => <option key={side} value={side}>{label(side)}</option>)}</select></label>
+                  <label>Individual order<select aria-label="Contribution order" value={contributionOrder} onChange={(event) => { const order = event.target.value as IndividualOrder; setContributionOrder(order); if (order === 'towards_wing' && contributionSide === 'center') setContributionSide('left'); setContribution(null) }}>{legalOrders[contributionPosition].map((order) => <option key={order} value={order}>{label(order)}</option>)}</select></label>
+                  <label><span><span className="state-badge badge-assumption">Assumption</span> Weather</span><select aria-label="Contribution weather" value={contributionWeather} onChange={(event) => { setContributionWeather(event.target.value as MatchWeather); setContribution(null) }}><option value="overcast">Overcast</option><option value="partly_cloudy">Partly cloudy</option><option value="sunny">Sunny</option><option value="rain">Rain</option></select></label>
+                  <button className="primary-button" disabled={busy || contributionPlayerId === null} onClick={() => void runContributionAnalysis()}>Calculate contribution</button>
+                </div>
+                {contribution && (
+                  <div className="contribution-results">
+                    <div className="table-scroll"><table className="contribution-table"><thead><tr><th>Sector</th>{contribution.checkpoints.map((checkpoint) => <th key={`${checkpoint.label}-${checkpoint.block_id ?? 'final'}`}><span className={`state-badge ${checkpoint.stage === 'current' ? 'badge-current' : 'badge-projected'}`}>{checkpoint.stage === 'current' ? 'Current' : 'Projected'}</span>{checkpoint.label}</th>)}<th>Final change</th></tr></thead><tbody>{contributionSectors.map((sector) => <tr key={sector}><th>{label(sector)}</th>{contribution.checkpoints.map((checkpoint) => <td key={`${sector}-${checkpoint.label}-${checkpoint.block_id ?? 'final'}`}>{checkpoint.starting[sector].toFixed(3)}</td>)}<td className={contribution.final_change[sector] > 0 ? 'positive-change' : ''}>{contribution.final_change[sector] >= 0 ? '+' : ''}{contribution.final_change[sector].toFixed(3)}</td></tr>)}</tbody></table></div>
+                    <div className="modifier-strip">
+                      <span>Form × {contribution.modifiers.form_factor.toFixed(3)}</span>
+                      <span>{contribution.modifiers.mother_club_bonus_applied ? 'Mother-club +1.500' : `Loyalty +${contribution.modifiers.loyalty_bonus.toFixed(3)}`}</span>
+                      <span>Match-start stamina × {contribution.modifiers.starting_stamina_factor.toFixed(3)}</span>
+                      <span>Weather × {contribution.modifiers.weather_factor.toFixed(3)}</span>
+                    </div>
+                    <ul className="uncertainty-list">{contribution.uncertainty_notes.map((note) => <li key={note}>{note}</li>)}</ul>
+                    <p className="formula-note">Model {contribution.model_version} · {contribution.model_quality}.</p>
+                  </div>
+                )}
+              </section>
 
               {finance && (
                 <section className="finance-card" aria-labelledby="finance-heading">

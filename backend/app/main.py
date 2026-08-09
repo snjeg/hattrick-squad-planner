@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.chpp.client import AccessToken, MockCHPPClient, OAuthCHPPClient
 from app.config import Settings, get_settings
+from app.contribution.types import ContributionValidationError
+from app.contribution_services import analyze_plan_player_contributions
 from app.database import get_session
 from app.finance_services import (
     get_plan_finance,
@@ -35,11 +37,13 @@ from app.plan_services import (
 from app.schemas import (
     AuthStartResponse,
     CHPPStatusResponse,
+    ContributionAnalysisRequest,
     FinanceAssumptionsUpdate,
     FinanceProjectionResponse,
     FixtureAttendanceUpdate,
     HealthResponse,
     PlanFinanceResponse,
+    PlayerContributionAnalysisResponse,
     SimulationResponse,
     SquadResponse,
     SyncResponse,
@@ -58,7 +62,7 @@ from app.simulator.capacity import CapacityValidationError
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-app = FastAPI(title="Hattrick Squad Planner API", version="0.4.0")
+app = FastAPI(title="Hattrick Squad Planner API", version="0.5.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
@@ -76,6 +80,7 @@ def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
 
 @app.exception_handler(PlanValidationError)
 @app.exception_handler(CapacityValidationError)
+@app.exception_handler(ContributionValidationError)
 def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(error)})
 
@@ -208,6 +213,19 @@ def create_plan(
 @app.get("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)
 def read_plan(session: SessionDependency, plan_id: int) -> TrainingPlanResponse:
     return get_training_plan(session, plan_id)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/players/{player_id}/contributions",
+    response_model=PlayerContributionAnalysisResponse,
+)
+def analyze_contributions(
+    session: SessionDependency,
+    plan_id: int,
+    player_id: int,
+    payload: ContributionAnalysisRequest,
+) -> PlayerContributionAnalysisResponse:
+    return analyze_plan_player_contributions(session, plan_id, player_id, payload)
 
 
 @app.patch("/api/training-plans/{plan_id}", response_model=TrainingPlanResponse)
