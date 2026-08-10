@@ -415,3 +415,22 @@ sale preferable in a weak window.
 **Revisit:** Add configurable timing multipliers only when backed by an explicit user model
 or a traceable empirical dataset. Hour/day/deadline/list-price execution remains out of
 scope.
+
+---
+
+## 2026-08-10 - Roster transitions compete inside bounded plan evaluation
+
+**Decision:** Fully evaluated training finalists also compete against a small set of
+Milestone 7 roster scenarios: top evidence-backed single sales, priced acquisitions only
+for meaningful capacity gaps, and at most one top sale-plus-acquisition. Evaluate current
+and block-boundary timing without real-market search or exhaustive combinatorics.
+
+Static projected transfer values are sale evidence only. Until a defensible
+training-path-sensitive resale model exists, remove transfer value from plan ranking and
+renormalize the remaining weights. Switch timing uses an equal-horizon
+continue-one-week versus switch-now marginal comparison, and all durations are additional
+weeks after the factual `current_block_weeks_completed` state.
+
+**Reason:** Post-hoc transfers could not change the chosen training plan, while a constant
+transfer component gave Profit-first false discriminatory precision. The bounded joint
+comparison fixes both errors without turning the milestone into a transfer optimizer.

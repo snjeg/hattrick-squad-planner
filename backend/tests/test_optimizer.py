@@ -15,6 +15,7 @@ from app.optimizer.types import (
     OptimizerPlayer,
     OptimizerRequest,
     OptimizerSearchConfiguration,
+    PlayerTransferAssumption,
     SeasonCalendar,
     SquadConstraints,
     TrainingSetup,
@@ -30,6 +31,7 @@ from app.roster_scenario.types import (
     ScenarioPlayer,
     ScenarioResult,
     TrainingCapacitySnapshot,
+    TransferValue,
     WageSource,
 )
 from app.squad_evaluation.types import SquadPlanningRole
@@ -277,7 +279,7 @@ def test_objective_presets_are_centralized_and_mode_specific() -> None:
     assert profit.transfer_value > team.transfer_value
 
 
-def test_objective_mode_can_change_candidate_ranking() -> None:
+def test_objective_modes_use_distinct_evaluable_plan_weights() -> None:
     generator = random.Random(6)
     players: list[OptimizerPlayer] = []
     for player in _request().players:
@@ -310,13 +312,10 @@ def test_objective_mode_can_change_candidate_ranking() -> None:
         replace(_request(ObjectiveMode.PROFIT_FIRST), players=tuple(players)),
         scenario_evaluator=_evaluator,
     )
-    assert (
-        team.recommended_next_block.training_type,
-        team.recommended_next_block.weeks,
-    ) != (
-        profit.recommended_next_block.training_type,
-        profit.recommended_next_block.weeks,
-    )
+    assert team.objective_breakdown.weights != profit.objective_breakdown.weights
+    assert "transfer_value" not in team.objective_breakdown.weights
+    assert "transfer_value" not in profit.objective_breakdown.weights
+    assert team.objective_breakdown.total != profit.objective_breakdown.total
 
 
 @pytest.mark.parametrize("mode", list(ObjectiveMode))
@@ -358,6 +357,136 @@ def test_switch_window_and_alternatives_expose_bounded_evidence() -> None:
     assert result.objective_breakdown.weighted_components
     assert result.diagnostics.candidate_plans_generated > 0
     assert result.diagnostics.dominated_plans_pruned > 0
+    assert "switch-minus-continue" in result.switch_window.rationale
+
+
+def test_current_block_progress_changes_marginal_switch_evidence() -> None:
+    fresh = optimize(_request(), scenario_evaluator=_evaluator)
+    established = optimize(
+        replace(_request(), current_block_weeks_completed=7),
+        scenario_evaluator=_evaluator,
+    )
+    assert "0 current-block weeks" in fresh.switch_window.rationale
+    assert "7 current-block weeks" in established.switch_window.rationale
+    assert (
+        fresh.switch_window.earliest_week,
+        fresh.switch_window.recommended_week,
+        fresh.switch_window.latest_week,
+    ) != (
+        established.switch_window.earliest_week,
+        established.switch_window.recommended_week,
+        established.switch_window.latest_week,
+    )
+    if established.recommended_next_block.training_type is TrainingType.PLAYMAKING:
+        assert any(
+            "additional from now" in reason for reason in established.recommended_next_block.reasons
+        )
+
+
+def test_profit_ranking_excludes_constant_transfer_value_component() -> None:
+    request = _request(ObjectiveMode.PROFIT_FIRST)
+    low_projection = tuple(
+        PlayerTransferAssumption(
+            item.state.evaluation_id,
+            TransferValue(90_000, 100_000, 110_000),
+            TransferValue(90_000, 100_000, 110_000),
+        )
+        for item in request.players
+    )
+    high_projection = tuple(
+        replace(item, projected_value=TransferValue(900_000, 1_000_000, 1_100_000))
+        for item in low_projection
+    )
+    first = optimize(
+        replace(request, transfer_assumptions=low_projection),
+        scenario_evaluator=_evaluator,
+    )
+    second = optimize(
+        replace(request, transfer_assumptions=high_projection),
+        scenario_evaluator=_evaluator,
+    )
+    assert "transfer_value" not in first.objective_breakdown.components
+    assert "transfer_value" not in first.objective_breakdown.weights
+    assert sum(first.objective_breakdown.weights.values()) == pytest.approx(1)
+    assert first.recommended_next_block == second.recommended_next_block
+    assert first.objective_breakdown.total == pytest.approx(second.objective_breakdown.total)
+
+
+def test_bounded_sale_transition_can_change_winning_training_plan() -> None:
+    request = _request()
+    exit_player = replace(
+        request.players[-1],
+        state=replace(request.players[-1].state, planning_role=SquadPlanningRole.EXIT),
+    )
+    request = replace(request, players=(*request.players[:-1], exit_player))
+    request = replace(
+        request,
+        search=OptimizerSearchConfiguration(
+            horizon_weeks=16,
+            block_depth=1,
+            beam_width=10,
+            next_training_candidates=10,
+            durations_per_type=1,
+            fully_evaluated_plans=10,
+            alternatives=2,
+            duration_candidates=(3,),
+        ),
+    )
+
+    def scenario_aware(request_: RosterScenarioRequest) -> RosterScenarioEvaluation:
+        baseline = _evaluator(request_).baseline
+        variants: list[ScenarioResult] = []
+        for scenario in request_.scenarios:
+            boost = (
+                75.0
+                if request_.checkpoints[0].checkpoint.meaningful_training_capacity == 10
+                and any(item.transition_type.value == "sell" for item in scenario.transitions)
+                else 0.0
+            )
+            checkpoints = tuple(
+                replace(
+                    checkpoint,
+                    metrics=replace(
+                        checkpoint.metrics,
+                        composite_score=(checkpoint.metrics.composite_score or 0) + boost,
+                        peak_strength=(checkpoint.metrics.peak_strength or 0) + boost,
+                        depth=(checkpoint.metrics.depth or 0) + boost,
+                        flexibility=(checkpoint.metrics.flexibility or 0) + boost,
+                        rotation=(checkpoint.metrics.rotation or 0) + boost,
+                    ),
+                )
+                for checkpoint in baseline.checkpoints
+            )
+            variants.append(
+                ScenarioResult(
+                    scenario.scenario_id,
+                    scenario.name,
+                    checkpoints,
+                    (),
+                    (),
+                    "test",
+                )
+            )
+        return RosterScenarioEvaluation(baseline, tuple(variants))
+
+    training_only = optimize(request, scenario_evaluator=scenario_aware)
+    with_sale = optimize(
+        replace(
+            request,
+            transfer_assumptions=(
+                PlayerTransferAssumption(
+                    exit_player.state.evaluation_id,
+                    TransferValue(90_000, 100_000, 110_000),
+                ),
+            ),
+        ),
+        scenario_evaluator=scenario_aware,
+    )
+    assert "roster variant optimizer:sale" in with_sale.alternatives[0].summary
+    assert (
+        training_only.recommended_next_block.training_type
+        is not with_sale.recommended_next_block.training_type
+    )
 
 
 def test_spare_capacity_generates_hypothetical_acquisition_profiles() -> None:
@@ -406,7 +535,7 @@ def test_candidate_runs_through_real_whole_squad_evaluator() -> None:
         ),
     )
     result = optimize(compact)
-    assert result.diagnostics.scenario_evaluations == 1
+    assert result.diagnostics.scenario_evaluations >= 7
     assert result.objective_breakdown.components["peak_strength"] > 0
     assert result.recommended_next_block.cohort
 

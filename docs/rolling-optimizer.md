@@ -16,7 +16,8 @@ existing wage projector; training uses the Milestone 2 engine and simulator.
 
 ## Objective
 
-All modes use the same nine normalized dimensions:
+The configured presets retain nine dimensions, but plan ranking currently uses the eight
+dimensions that are path-sensitive:
 
 | Dimension | Team first | Balanced | Profit first |
 | --- | ---: | ---: | ---: |
@@ -25,14 +26,17 @@ All modes use the same nine normalized dimensions:
 | Formation flexibility | .10 | .08 | .05 |
 | Rotation | .08 | .07 | .05 |
 | Training efficiency | .13 | .15 | .18 |
-| Transfer value | .04 | .13 | .25 |
+| Transfer value (configured; excluded from ranking) | .04 | .13 | .25 |
 | Wage efficiency | .08 | .10 | .11 |
 | Capital efficiency | .05 | .08 | .10 |
 | Liquidity | .08 | .09 | .08 |
 
 These are product presets, not Hattrick facts. They are centralized in
-`optimizer/weights.py`, versioned as `rolling-objective-v1`, and may be replaced with
-finite, non-negative custom weights. Custom weights are normalized transparently.
+`optimizer/weights.py`, versioned as `rolling-objective-v2`, and may be replaced with
+finite, non-negative custom weights. For ranking, the transfer-value weight is removed and
+the remaining eight weights are renormalized to one. There is no defensible
+path-sensitive resale curve yet; awarding every path the same static component would
+create false precision, especially in Profit-first mode.
 
 Competitive checkpoint values are discounted by `0.985 ** optimizer_week`. The default
 is a modest planning preference rather than an empirical Hattrick constant. Training
@@ -41,8 +45,9 @@ Full/partial position capacity uses the existing eligibility and capacity layer;
 and Set Pieces bonus exposure remain beneficiaries but do not consume an ordinary scarce
 slot.
 
-Transfer value is included only when the manager supplies low/base/high assumptions.
-Missing values lower confidence. No hidden valuation or season-price formula is used.
+Manager-supplied low/base/high values are used only as sale proceeds in concrete roster
+scenarios. Missing values prevent that sale scenario and lower confidence. No hidden
+valuation or season-price formula is used.
 
 ## Candidate blocks and cohorts
 
@@ -62,10 +67,17 @@ contribution or squad engines.
 
 Default duration seeds are 3, 5, 7, 9, 12, and 16 weeks. The simulator adds nearby
 visible-pop events, scores the bounded set, and retains the strongest durations for each
-type. A switch window is the earliest/recommended/latest duration within six percent of
-the winning type's pop-informed marginal proxy. It is deliberately a window, not a fake
-exact date. Existing training receives a small configurable continuity/friction signal;
-switch-now candidates remain available.
+type. `current_block_weeks_completed` is sunk factual progress, and every returned
+duration means additional weeks from now. An established current block can therefore have
+a one-week continuation or switch-now candidate even though new blocks use the configured
+minimum duration.
+
+The switch window is an explicit bounded marginal crossover. Around the winning first
+duration, equal-horizon branches compare one more week of current training against
+switching that week to the best surviving alternative. Both are rescored with discounted
+whole-squad, training, wage, capital, and liquidity components. The window comes from
+where switch-minus-continue becomes non-negative, or the closest observed margin if the
+bounded neighborhood contains no crossover.
 
 ## Search
 
@@ -78,8 +90,11 @@ The search:
 3. expands different following blocks up to the configured depth/horizon;
 4. conservatively prunes plans only when equal-horizon/same-ending-training candidates
    are no better in both proxy value and capacity utilization;
-5. fully evaluates the bounded finalists through the roster-scenario and whole-squad
-   engines.
+5. fully evaluates each finalist as training-only and with a small roster set: top
+   evidence-backed one-player sales, priced acquisitions for actual unused meaningful
+   capacity, and at most the top sale-plus-acquisition pair;
+6. compiles those transitions through Milestone 7 `RosterScenario` primitives and
+   `evaluate_roster_scenarios`, allowing a transition to change the winning plan.
 
 Diagnostics report candidates, pruning, cache hits, full evaluations, beam width, and
 depth. `global_optimality_claimed` is always false and alternatives say “best found.”
@@ -110,6 +125,13 @@ latest useful week, and optional manager-supplied low/base/high price and wage. 
 is delayed until shortly before its useful block so it does not silently incur early
 wages or capital use. It is not a fabricated market player.
 
+Only profiles with both a manager-supplied price and wage become evaluated acquisitions.
+Sales are limited to the configured top few evidence-ranked players with supplied values,
+at `CURRENT` and first-block end. Acquisitions occur at `CURRENT` for the first block or
+immediately before the relevant later block. V1 evaluates training-only, one sale, one
+acquisition, and at most one top sale-plus-acquisition; it neither searches the real
+market nor enumerates transfer combinations.
+
 ## Season calendar and market uncertainty
 
 `community-seasonality-v1` is qualitative:
@@ -135,10 +157,8 @@ Formula and wage uncertainty remain documented rather than converted into a fake
 confidence percentage.
 
 Hard constraints support minimum cash, maximum capital use, wage ceiling, minimum roster
-size, goalkeeper/IM coverage, squad score, and depth. Because v1 emits abstract
-acquisition/sale preparations rather than selecting a priced transition into the winning
-path, `max_transfer_spend` becomes operative only when a concrete transition is supplied
-to the roster-scenario layer.
+size, goalkeeper/IM coverage, squad score, and depth. `max_transfer_spend` is enforced by
+the roster-scenario layer for priced acquisition candidates.
 
 ## API and UI
 
@@ -151,8 +171,9 @@ diagnostics.
 
 ## Known limitations
 
-- Future transitions are currently recommendations/evidence derived from the evaluated
-  baseline path; v1 does not jointly select a buy/sell pair inside every beam node.
+- Roster search occurs only for fully evaluated beam finalists. It can select one sale,
+  one acquisition, or the top pair, but is not exhaustive and cannot rescue a training
+  path already removed by cheap bounded pruning.
 - Static user projected-value assumptions are not an automatic skill-to-price curve.
 - Historical optimizer-run persistence and comparison is deferred; the response is
   serializable and includes the factual state/model versions needed for later storage.

@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 
 from app.contribution.types import PlayerMatchState, PositionRole
-from app.optimizer.assignments import AssignmentPlan, plan_assignments
+from app.optimizer.assignments import AssignmentPlan, participation_for, plan_assignments
 from app.optimizer.calendar import calendar_point
 from app.optimizer.types import (
     AcquisitionTarget,
@@ -17,7 +17,6 @@ from app.optimizer.types import (
     OptimizerRequest,
     OptimizerValidationError,
     PlanAlternative,
-    PlayerTransferAssumption,
     RecommendationStage,
     RecommendedBlock,
     SaleCandidate,
@@ -30,11 +29,18 @@ from app.optimizer.weights import normalized_weights
 from app.roster_scenario.engine import evaluate_roster_scenarios
 from app.roster_scenario.types import (
     BaseCheckpointState,
+    BuyTransition,
+    HypotheticalPlayer,
+    PlayerSource,
     PriceCase,
+    RosterScenario,
     RosterScenarioEvaluation,
     RosterScenarioRequest,
     ScenarioCheckpoint,
+    ScenarioConstraints,
     ScenarioPlayer,
+    ScenarioResult,
+    SellTransition,
     WageSource,
 )
 from app.simulator.engine import simulate_plan
@@ -46,7 +52,9 @@ from app.simulator.types import (
     SimulationResult,
 )
 from app.squad_evaluation.types import SquadPlanningRole
+from app.training.age import HattrickAge
 from app.training.coefficients import definition_for
+from app.training.eligibility import TrainingExposure
 from app.training.types import Skill, TrainingType
 from app.wage.projection import WagePlayerMetadata, WageProjection, project_wages
 
@@ -99,10 +107,12 @@ class _Materialized:
 class _Evaluated:
     materialized: _Materialized
     scenario: RosterScenarioEvaluation
+    result: ScenarioResult
     wages: WageProjection
     objective_by_case: Mapping[PriceCase, ObjectiveBreakdown]
     feasible: bool
     violations: tuple[str, ...]
+    variant_id: str = "baseline"
 
 
 @dataclass(slots=True)
@@ -210,7 +220,10 @@ def _proxy_score(
     )
     current_bonus = 0.0
     if specs and specs[0].training_type is request.current_training_type:
-        current_bonus = max(0.0, 0.02 - request.search.transaction_friction)
+        # Continuity is useful early in a block, but completed work is sunk.  Once a
+        # block is established, switching now must remain a real candidate.
+        continuity = max(0.0, 0.02 - 0.002 * request.current_block_weeks_completed)
+        current_bonus = max(0.0, continuity - request.search.transaction_friction)
     return (
         total_gain / total_weeks
         + 0.015 * pops / total_weeks
@@ -278,13 +291,26 @@ def _duration_candidates(
     counters: _Counters,
 ) -> tuple[int, ...]:
     base = set(request.search.duration_candidates)
+    if training_type is request.current_training_type:
+        minimum_additional = max(
+            1, request.search.minimum_block_weeks - request.current_block_weeks_completed
+        )
+        base.add(minimum_additional)
     longest = max(base)
     materialized = _materialize(request, (_BlockSpec(training_type, longest),), cache, counters)
     added: set[int] = set()
     for week in materialized.simulation.weekly_results:
         if any(player.skill_ups for player in week.players):
             for candidate in (week.week, week.week + 1):
-                if request.search.minimum_block_weeks <= candidate <= longest:
+                minimum = (
+                    max(
+                        1,
+                        request.search.minimum_block_weeks - request.current_block_weeks_completed,
+                    )
+                    if training_type is request.current_training_type
+                    else request.search.minimum_block_weeks
+                )
+                if minimum <= candidate <= longest:
                     if candidate not in base:
                         added.add(candidate)
     counters.pop_durations += len(added)
@@ -462,6 +488,7 @@ def _scenario_request(
     request: OptimizerRequest,
     materialized: _Materialized,
     wages: WageProjection,
+    scenarios: tuple[RosterScenario, ...] = (),
 ) -> RosterScenarioRequest:
     original = {item.state.evaluation_id: item.state for item in request.players}
     projections = {item.player_id: item for item in materialized.simulation.players}
@@ -539,7 +566,7 @@ def _scenario_request(
         previous_week = cumulative_week
     return RosterScenarioRequest(
         checkpoints=tuple(frames),
-        scenarios=(),
+        scenarios=scenarios,
         opening_cash=request.finance.starting_cash,
         context=request.context,
         profiles=(request.evaluation_profile,),
@@ -547,29 +574,20 @@ def _scenario_request(
     )
 
 
-def _transfer_component(
-    assumptions: tuple[PlayerTransferAssumption, ...], price_case: PriceCase, cash: int
-) -> float:
-    gain = sum(
-        max(
-            0,
-            (item.projected_value or item.current_value).amount(price_case)
-            - item.current_value.amount(price_case),
-        )
-        for item in assumptions
-    )
-    return min(1.0, gain / max(1, cash))
-
-
 def _objective(
     request: OptimizerRequest,
     materialized: _Materialized,
-    scenario: RosterScenarioEvaluation,
-    wages: WageProjection,
+    result: ScenarioResult,
     price_case: PriceCase,
 ) -> ObjectiveBreakdown:
-    weights = normalized_weights(request.objective_mode, request.custom_weights)
-    checkpoints = scenario.baseline.checkpoints
+    configured = normalized_weights(request.objective_mode, request.custom_weights).as_mapping()
+    # Static transfer assumptions are sale evidence, not a path-sensitive resale
+    # forecast.  Exclude that dimension and renormalize the dimensions that a plan
+    # can actually change.
+    evaluable = {name: value for name, value in configured.items() if name != "transfer_value"}
+    evaluable_total = sum(evaluable.values())
+    weights = {name: value / evaluable_total for name, value in evaluable.items()}
+    checkpoints = result.checkpoints
     weighted_time = [
         request.search.discount_factor_per_week**item.checkpoint.week for item in checkpoints
     ]
@@ -588,17 +606,18 @@ def _objective(
         )
 
     proxy = min(1.0, materialized.proxy_score / 0.35)
+    active_checkpoints = checkpoints[: len(materialized.specs)]
     capacity_weeks = sum(
-        plan.meaningful_capacity * spec.weeks
-        for plan, spec in zip(materialized.assignment_plans, materialized.specs, strict=True)
+        checkpoint.training.meaningful_capacity * spec.weeks
+        for checkpoint, spec in zip(active_checkpoints, materialized.specs, strict=True)
     )
     wasted_units = sum(
-        plan.unused_capacity * spec.weeks
-        for plan, spec in zip(materialized.assignment_plans, materialized.specs, strict=True)
+        checkpoint.training.unused_capacity * spec.weeks
+        for checkpoint, spec in zip(active_checkpoints, materialized.specs, strict=True)
     )
     training_efficiency = 1.0 - wasted_units / max(1.0, capacity_weeks)
-    average_wages = sum(item.squad_wage for item in wages.weekly_squad_wages) / max(
-        1, len(wages.weekly_squad_wages)
+    average_wages = sum(item.metrics.weekly_wages for item in checkpoints) / max(
+        1, len(checkpoints)
     )
     ending_cash = checkpoints[-1].metrics.cash.value(price_case)
     minimum_cash = min(item.metrics.cash.value(price_case) for item in checkpoints)
@@ -609,9 +628,6 @@ def _objective(
         "flexibility": average("flexibility", proxy * 0.85),
         "rotation": average("rotation", proxy * 0.85),
         "training_efficiency": max(0.0, min(1.0, training_efficiency)),
-        "transfer_value": _transfer_component(
-            request.transfer_assumptions, price_case, request.finance.starting_cash
-        ),
         "wage_efficiency": 1 / (1 + average_wages / 100_000),
         "capital_efficiency": 1 / (1 + capital_used / max(1, request.finance.starting_cash)),
         "liquidity": max(
@@ -619,11 +635,11 @@ def _objective(
             min(1.0, ending_cash / max(1, request.finance.starting_cash)),
         ),
     }
-    weighted = {name: value * weights.as_mapping()[name] for name, value in components.items()}
+    weighted = {name: value * weights[name] for name, value in components.items()}
     return ObjectiveBreakdown(
         components=MappingProxyType(components),
         weighted_components=MappingProxyType(weighted),
-        weights=MappingProxyType(dict(weights.as_mapping())),
+        weights=MappingProxyType(weights),
         total=sum(weighted.values()),
         price_case=price_case.value,
     )
@@ -631,11 +647,10 @@ def _objective(
 
 def _constraint_violations(
     request: OptimizerRequest,
-    scenario: RosterScenarioEvaluation,
-    wages: WageProjection,
+    result: ScenarioResult,
 ) -> tuple[str, ...]:
     violations: list[str] = []
-    checkpoints = scenario.baseline.checkpoints
+    checkpoints = result.checkpoints
     finance = request.finance
     if (
         finance.minimum_cash_reserve is not None
@@ -653,7 +668,7 @@ def _constraint_violations(
         violations.append("Maximum capital use is violated.")
     if (
         finance.wage_ceiling is not None
-        and max((item.squad_wage for item in wages.weekly_squad_wages), default=0)
+        and max((item.metrics.weekly_wages for item in checkpoints), default=0)
         > finance.wage_ceiling
     ):
         violations.append("Weekly wage ceiling is violated.")
@@ -674,9 +689,7 @@ def _constraint_violations(
     ):
         violations.append("Minimum depth score is violated.")
     active = [
-        item.state
-        for item in request.players
-        if item.state.planning_role is not SquadPlanningRole.EXIT
+        item for item in final.roster_players if item.planning_role is not SquadPlanningRole.EXIT
     ]
     if constraints.minimum_goalkeepers is not None:
         viable = sum(
@@ -703,6 +716,146 @@ def _constraint_violations(
     return tuple(violations)
 
 
+def _scenario_constraints(request: OptimizerRequest) -> ScenarioConstraints:
+    return ScenarioConstraints(
+        minimum_cash_reserve=request.finance.minimum_cash_reserve,
+        max_transfer_spend=request.finance.max_transfer_spend,
+    )
+
+
+def _hypothetical_player(
+    target: AcquisitionTarget,
+    base_request: RosterScenarioRequest,
+) -> HypotheticalPlayer:
+    if target.expected_weekly_wage is None:
+        raise OptimizerValidationError("A priced acquisition requires a weekly wage")
+    trained = {skill: sum(bounds) / 2 for skill, bounds in target.skill_ranges.items()}
+    skills = {skill: trained.get(skill, 5.0) for skill in Skill}
+    match_state = PlayerMatchState(
+        goalkeeper=skills[Skill.GOALKEEPING],
+        defending=skills[Skill.DEFENDING],
+        playmaking=skills[Skill.PLAYMAKING],
+        winger=skills[Skill.WINGER],
+        passing=skills[Skill.PASSING],
+        scoring=skills[Skill.SCORING],
+        set_pieces=skills[Skill.SET_PIECES],
+        stamina=7.0,
+        form=7.0,
+        experience=5.0,
+        loyalty=10.0,
+        mother_club=False,
+        specialty=None,
+    )
+    states: dict[str, ScenarioPlayer] = {}
+    for frame in base_request.checkpoints:
+        if frame.checkpoint.order < target.useful_from_block - 1:
+            continue
+        exposure = TrainingExposure()
+        if frame.checkpoint.order == target.useful_from_block - 1:
+            exposure = TrainingExposure(full_minutes=90)
+        states[frame.checkpoint.checkpoint_id] = ScenarioPlayer(
+            player_key=f"hyp:{target.target_id}",
+            evaluation_id=-10_000 - target.useful_from_block,
+            name=target.target_id,
+            age=HattrickAge(target.age_min, 0),
+            skills=MappingProxyType(skills),
+            match_state=match_state,
+            planning_role=SquadPlanningRole(target.planning_role),
+            weekly_wage=target.expected_weekly_wage,
+            wage_source=WageSource.SUPPLIED_ASSUMPTION,
+            source=PlayerSource.HYPOTHETICAL,
+            allowed_positions=frozenset((target.role,)),
+            preferred_positions=frozenset((target.role,)),
+            training_participation=(participation_for(exposure)),
+            training_exposure=exposure,
+            source_quality="optimizer-profile-assumption",
+            notes="Abstract acquisition profile; not a real-market player.",
+        )
+    return HypotheticalPlayer(
+        hypothetical_id=f"hyp:{target.target_id}",
+        label=target.target_id,
+        states_by_checkpoint=MappingProxyType(states),
+        source_note="Manager-supplied price/wage with generated skill profile.",
+    )
+
+
+def _transition_scenarios(
+    request: OptimizerRequest,
+    preliminary: _Evaluated,
+    base_request: RosterScenarioRequest,
+) -> tuple[RosterScenario, ...]:
+    """Compile a deliberately small transition set through Milestone 7 primitives."""
+    assumptions = {item.player_id: item for item in request.transfer_assumptions}
+    scenarios: list[RosterScenario] = []
+    sale_scenarios: list[RosterScenario] = []
+    for candidate in _sale_candidates(request, preliminary):
+        assumption = assumptions.get(candidate.player_id)
+        if assumption is None:
+            continue
+        checkpoints = ["current"]
+        if len(base_request.checkpoints) > 1:
+            checkpoints.append("after_block:1")
+        for checkpoint in checkpoints:
+            sale_transition = SellTransition(
+                transition_id=f"sale:{candidate.player_id}:{checkpoint}",
+                effective_checkpoint=checkpoint,
+                player_key=f"player:{candidate.player_id}",
+                expected_fee=assumption.current_value,
+                note="Bounded optimizer sale candidate; evidence, not an instruction.",
+            )
+            scenario = RosterScenario(
+                scenario_id=f"optimizer:{sale_transition.transition_id}",
+                name=f"Training plus sale of {candidate.player} at {checkpoint}",
+                transitions=(sale_transition,),
+                constraints=_scenario_constraints(request),
+            )
+            sale_scenarios.append(scenario)
+            scenarios.append(scenario)
+
+    acquisition_scenarios: list[RosterScenario] = []
+    for target in _acquisition_targets(request, preliminary)[
+        : request.search.transition_candidates_per_block
+    ]:
+        if target.expected_price is None or target.expected_weekly_wage is None:
+            continue
+        hypothetical = _hypothetical_player(target, base_request)
+        checkpoint = (
+            "current"
+            if target.useful_from_block == 1
+            else (f"after_block:{target.useful_from_block - 1}")
+        )
+        buy_transition = BuyTransition(
+            transition_id=f"buy:{target.target_id}:{checkpoint}",
+            effective_checkpoint=checkpoint,
+            hypothetical_id=hypothetical.hypothetical_id,
+            purchase_price=target.expected_price,
+            note="Bounded abstract acquisition; no market search was performed.",
+        )
+        scenario = RosterScenario(
+            scenario_id=f"optimizer:{buy_transition.transition_id}",
+            name=f"Training plus acquisition {target.target_id}",
+            transitions=(buy_transition,),
+            hypothetical_players=(hypothetical,),
+            constraints=_scenario_constraints(request),
+        )
+        acquisition_scenarios.append(scenario)
+        scenarios.append(scenario)
+
+    if sale_scenarios and acquisition_scenarios:
+        sale = sale_scenarios[0]
+        acquisition = acquisition_scenarios[0]
+        scenarios.append(
+            RosterScenario(
+                scenario_id="optimizer:top-sale-plus-buy",
+                name="Training plus top bounded sale and acquisition",
+                transitions=(*sale.transitions, *acquisition.transitions),
+                hypothetical_players=acquisition.hypothetical_players,
+                constraints=_scenario_constraints(request),
+            )
+        )
+    return tuple(scenarios)
+
+
 def _evaluate_candidate(
     request: OptimizerRequest,
     materialized: _Materialized,
@@ -710,21 +863,64 @@ def _evaluate_candidate(
     counters: _Counters,
 ) -> _Evaluated:
     wages = _wages(request, materialized.simulation)
-    scenario = evaluator(_scenario_request(request, materialized, wages))
+    base_request = _scenario_request(request, materialized, wages)
+    baseline_evaluation = evaluator(base_request)
     counters.scenario_evaluations += 1
-    violations = _constraint_violations(request, scenario, wages)
-    objectives = {
-        price_case: _objective(request, materialized, scenario, wages, price_case)
-        for price_case in PriceCase
-    }
-    counters.plans_evaluated += 1
-    return _Evaluated(
+    baseline = baseline_evaluation.baseline
+    preliminary_violations = _constraint_violations(request, baseline)
+    preliminary = _Evaluated(
         materialized=materialized,
-        scenario=scenario,
+        scenario=baseline_evaluation,
+        result=baseline,
         wages=wages,
-        objective_by_case=MappingProxyType(objectives),
-        feasible=not violations,
-        violations=violations,
+        objective_by_case=MappingProxyType(
+            {
+                price_case: _objective(request, materialized, baseline, price_case)
+                for price_case in PriceCase
+            }
+        ),
+        feasible=not preliminary_violations,
+        violations=preliminary_violations,
+    )
+    scenarios = _transition_scenarios(request, preliminary, base_request)
+    evaluation = (
+        evaluator(_scenario_request(request, materialized, wages, scenarios))
+        if scenarios
+        else baseline_evaluation
+    )
+    counters.scenario_evaluations += len(scenarios)
+    candidates = (evaluation.baseline, *evaluation.scenarios)
+
+    ranked: list[_Evaluated] = []
+    for result in candidates:
+        violations = (
+            *_constraint_violations(request, result),
+            *result.constraint_violations,
+        )
+        objectives = {
+            price_case: _objective(request, materialized, result, price_case)
+            for price_case in PriceCase
+        }
+        ranked.append(
+            _Evaluated(
+                materialized=materialized,
+                scenario=evaluation,
+                result=result,
+                wages=wages,
+                objective_by_case=MappingProxyType(objectives),
+                feasible=not violations,
+                violations=violations,
+                variant_id=result.scenario_id,
+            )
+        )
+    counters.plans_evaluated += 1
+    return max(
+        ranked,
+        key=lambda item: (
+            item.feasible,
+            item.objective_by_case[PriceCase.BASE].total,
+            item.variant_id == "baseline",
+        ),
     )
 
 
@@ -742,12 +938,21 @@ def _recommended_blocks(
             for item in assignment.cohort
         )
         direct = sum(item.participation in ("full", "partial", "mixed") for item in cohort)
+        progress = (
+            f"{request.current_block_weeks_completed} weeks of the current block are already "
+            "completed; this duration is additional from now."
+            if index == 1
+            and spec.training_type is request.current_training_type
+            and request.current_block_weeks_completed
+            else "Duration is measured in additional weeks from the current factual state."
+        )
         reasons = (
             f"{direct} direct or mixed beneficiaries use "
             f"{assignment.consumed_capacity:.1f} of {assignment.meaningful_capacity} "
             "meaningful capacity units.",
             f"Projected block gain is evaluated across {len(cohort)} beneficiaries, "
             "including secondary and osmosis exposure.",
+            progress,
         )
         result.append(
             RecommendedBlock(
@@ -784,41 +989,100 @@ def _alternative(request: OptimizerRequest, item: _Evaluated, rank: int) -> Plan
         constraint_violations=item.violations,
         summary=(
             " -> ".join(f"{block.training_type.value} {block.weeks}w" for block in blocks)
-            + "; best found under bounded search"
+            + f"; roster variant {item.variant_id}; best found under bounded search"
         ),
     )
 
 
+def _training_only_score(
+    request: OptimizerRequest,
+    materialized: _Materialized,
+    evaluator: ScenarioEvaluator,
+    counters: _Counters,
+) -> float:
+    wages = _wages(request, materialized.simulation)
+    evaluation = evaluator(_scenario_request(request, materialized, wages))
+    counters.scenario_evaluations += 1
+    return _objective(request, materialized, evaluation.baseline, PriceCase.BASE).total
+
+
 def _switch_window(
+    request: OptimizerRequest,
     best: _Evaluated,
     evaluated: list[_Evaluated],
-    duration_materialized: list[_Materialized],
+    evaluator: ScenarioEvaluator,
+    cache: dict[tuple[tuple[str, int], ...], _Materialized],
+    counters: _Counters,
 ) -> SwitchWindow:
-    training_type = best.materialized.specs[0].training_type
-    comparable = [
-        item
-        for item in duration_materialized
-        if item.specs[0].training_type is training_type
-        and item.proxy_score >= best.materialized.proxy_score * 0.94
-    ]
-    weeks = [item.specs[0].weeks for item in comparable] or [best.materialized.specs[0].weeks]
+    current = request.current_training_type or best.materialized.specs[0].training_type
     alternative = next(
         (
             item.materialized.specs[0].training_type
             for item in evaluated
-            if item.materialized.specs[0].training_type is not training_type
+            if item.materialized.specs[0].training_type is not current
         ),
         None,
     )
-    recommended = best.materialized.specs[0].weeks
+    if alternative is None:
+        week = best.materialized.specs[0].weeks
+        return SwitchWindow(
+            week,
+            week,
+            week,
+            None,
+            "No alternative training type survived the bounded full evaluation.",
+        )
+
+    minimum = max(0, request.search.minimum_block_weeks - request.current_block_weeks_completed)
+    center = (
+        best.materialized.specs[0].weeks
+        if best.materialized.specs[0].training_type is current
+        else minimum
+    )
+    candidate_weeks = sorted(
+        {
+            minimum,
+            *(
+                week
+                for week in range(max(minimum, center - 2), center + 3)
+                if week + request.search.minimum_block_weeks + 1 <= request.search.horizon_weeks
+            ),
+        }
+    )
+    comparisons: list[tuple[int, float]] = []
+    alternative_weeks = request.search.minimum_block_weeks
+    for week in candidate_weeks:
+        continue_specs = (
+            _BlockSpec(current, week + 1),
+            _BlockSpec(alternative, alternative_weeks),
+        )
+        switch_specs = (
+            *((_BlockSpec(current, week),) if week else ()),
+            _BlockSpec(alternative, alternative_weeks + 1),
+        )
+        continue_score = _training_only_score(
+            request, _materialize(request, continue_specs, cache, counters), evaluator, counters
+        )
+        switch_score = _training_only_score(
+            request, _materialize(request, switch_specs, cache, counters), evaluator, counters
+        )
+        comparisons.append((week, switch_score - continue_score))
+    competitive = [week for week, delta in comparisons if delta >= 0]
+    recommended, closest_delta = min(comparisons, key=lambda item: (abs(item[1]), item[0]))
+    earliest = min(competitive) if competitive else recommended
+    latest = max(competitive) if competitive else recommended
     return SwitchWindow(
-        earliest_week=min(weeks),
+        earliest_week=earliest,
         recommended_week=recommended,
-        latest_week=max(weeks),
+        latest_week=latest,
         best_alternative_training=alternative,
         rationale=(
-            f"The {min(weeks)}-{max(weeks)} week range stays within 6% of the best "
-            "pop-informed marginal proxy; re-run after each factual sync or skill pop."
+            f"Bounded marginal crossover compares one more week of {current.value} with "
+            f"switching that week to {alternative.value} using discounted whole-squad, "
+            f"training, wage, capital, and liquidity objectives. At week {recommended}, "
+            f"switch-minus-continue is {closest_delta:+.4f}. The window is additional "
+            f"weeks from now; {request.current_block_weeks_completed} current-block weeks "
+            "are already completed."
         ),
     )
 
@@ -951,15 +1215,9 @@ def _sale_candidates(request: OptimizerRequest, best: _Evaluated) -> tuple[SaleC
         capacity = meaningful_capacity_units(exposure or TrainingExposure())
         options = _sale_options(request, player, best)
         direct = capacity > 0
-        preferred_event = (
-            SaleTimingEvent.AT_BLOCK_END if direct else SaleTimingEvent.NOW
-        )
+        preferred_event = SaleTimingEvent.AT_BLOCK_END if direct else SaleTimingEvent.NOW
         suggested = next(
-            (
-                item
-                for item in options
-                if item.event is preferred_event
-            ),
+            (item for item in options if item.event is preferred_event),
             options[0],
         )
         transfer = transfers.get(player.evaluation_id)
@@ -1135,11 +1393,6 @@ def optimize(
     )
     best = feasible[0]
     blocks = _recommended_blocks(request, best.materialized)
-    all_single = [
-        item
-        for item in simulation_cache.values()
-        if len(item.specs) == 1 and item.specs[0].training_type is blocks[0].training_type
-    ]
     sensitivity = _sensitivity(feasible)
     alternatives = tuple(
         _alternative(request, item, rank)
@@ -1161,6 +1414,11 @@ def optimize(
         "injuries, finance changes, or manual value updates.",
         "Training, contribution, team-rating, wage, and market timing models retain their "
         "documented community uncertainty.",
+        "Roster transitions are a small bounded set (training-only, one sale, one "
+        "acquisition, and at most one top sale-plus-acquisition), not exhaustive "
+        "buy/sell combinatorics.",
+        "Static transfer-value assumptions are sale evidence only; the unevaluable "
+        "transfer-value weight is removed and remaining objective weights are renormalized.",
         "Market seasonality is qualitative unless the manager supplies explicit timing "
         "multipliers; no automatic price uplift is applied.",
         "Only explicit plan-bound fixture income is included; unresolved future match "
@@ -1168,12 +1426,20 @@ def optimize(
     ]
     if missing_values:
         uncertainty.append(
-            "Some players lack transfer-value assumptions; their profit component is omitted."
+            "Some players lack transfer-value assumptions; sale scenarios for them are omitted."
         )
     if calendar_unknown:
         uncertainty.append(
             "Current Hattrick season week is unknown; sale-window confidence is reduced."
         )
+    switch_window = _switch_window(
+        request,
+        best,
+        feasible,
+        scenario_evaluator,
+        simulation_cache,
+        counters,
+    )
     diagnostics = OptimizerDiagnostics(
         training_candidates_generated=counters.training_candidates,
         duration_candidates_generated=counters.duration_candidates,
@@ -1191,7 +1457,7 @@ def optimize(
         current_state_version=request.current_state_version,
         objective_mode=request.objective_mode,
         recommended_next_block=blocks[0],
-        switch_window=_switch_window(best, feasible, all_single),
+        switch_window=switch_window,
         planned_training_cohort=blocks[0].cohort,
         keep_until_block=keeps,
         sale_candidates=sales,
