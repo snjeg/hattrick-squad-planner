@@ -17,6 +17,8 @@ import type {
   PositionSide,
   IndividualOrder,
   MatchWeather,
+  OptimizerRecommendation,
+  OptimizerRequest,
   SimulationResponse,
   SquadResponse,
   SyncResponse,
@@ -161,6 +163,15 @@ export const api = {
   evaluateRosterScenarios: (planId: number, value: RosterScenarioRequest) =>
     request<RosterScenarioEvaluation>(
       `/api/training-plans/${planId}/roster-scenarios/evaluate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      },
+    ),
+  optimizePlan: (planId: number, value: OptimizerRequest) =>
+    request<OptimizerRecommendation>(
+      `/api/training-plans/${planId}/optimize`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

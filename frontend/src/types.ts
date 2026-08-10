@@ -670,3 +670,131 @@ export interface RosterScenarioEvaluation {
   model_version: string
   source_labels: Record<string, string>
 }
+
+export type OptimizerObjectiveMode = 'team_first' | 'balanced' | 'profit_first'
+
+export interface OptimizerBlock {
+  training_type: TrainingType
+  weeks: number
+  stage: 'recommended' | 'projected' | 'conditional'
+  start_week: number
+  end_week: number
+  capacity: number
+  consumed_capacity: number
+  unused_capacity: number
+  cohort: Array<{
+    player_id: number
+    player: string
+    planning_role: SquadPlanningRole
+    participation: TrainingParticipation
+    trained_skill: Skill
+    projected_gain: number
+    marginal_value: number
+  }>
+  calendar_at_end: {
+    optimizer_week: number
+    season_number: number | null
+    season_week: number | null
+    market_strength: string
+    weeks_until_stronger_window: number | null
+  }
+  reasons: string[]
+}
+
+export interface OptimizerRecommendation {
+  current_state_version: string
+  objective_mode: OptimizerObjectiveMode
+  recommended_next_block: OptimizerBlock
+  switch_window: {
+    earliest_week: number
+    recommended_week: number
+    latest_week: number
+    best_alternative_training: TrainingType | null
+    rationale: string
+  }
+  planned_training_cohort: OptimizerBlock['cohort']
+  keep_until_block: Array<{
+    player_id: number
+    player: string
+    through_block: number
+    rationale: string
+  }>
+  sale_candidates: Array<{
+    player_id: number
+    player: string
+    suggested_timing: {
+      event: string
+      optimizer_week: number
+      calendar: OptimizerBlock['calendar_at_end']
+      rationale: string
+    }
+    replacement_drop: number | null
+    top_lineup_frequency: number | null
+    weekly_wage_saved: number
+    expected_proceeds: PriceCaseAmounts | null
+    training_capacity_freed: number
+    evidence: string[]
+    confidence: string
+  }>
+  preparation_acquisitions: Array<{
+    target_id: string
+    role: Position
+    useful_from_block: number
+    latest_acquisition_week: number
+    age_min: number
+    age_max: number
+    skill_ranges: Partial<Record<Skill, [number, number]>>
+    planning_role: SquadPlanningRole
+    rationale: string
+    hypothetical: boolean
+  }>
+  projected_following_blocks: OptimizerBlock[]
+  alternatives: Array<{
+    rank: number
+    blocks: OptimizerBlock[]
+    objective: { total: number }
+    feasible: boolean
+    constraint_violations: string[]
+    summary: string
+  }>
+  objective_breakdown: {
+    components: Record<string, number>
+    weighted_components: Record<string, number>
+    weights: Record<string, number>
+    total: number
+    price_case: string
+  }
+  sensitivity: {
+    low: number
+    base: number
+    high: number
+    recommendation_stable: boolean
+    note: string
+  }
+  confidence: string
+  uncertainty: string[]
+  diagnostics: Record<string, number | boolean>
+  model_version: string
+  objective_weights_version: string
+  search_model_version: string
+  market_timing_model_version: string
+  global_optimality_claimed: false
+}
+
+export interface OptimizerRequest {
+  members: Array<{ player_id: number; planning_role: SquadPlanningRole }>
+  objective_mode: OptimizerObjectiveMode
+  current_training_type: TrainingType | null
+  search: {
+    horizon_weeks: number
+    block_depth: number
+    beam_width: number
+    next_training_candidates: number
+    durations_per_type: number
+    fully_evaluated_plans: number
+    alternatives: number
+  }
+  evaluation_profile: EvaluationProfile
+  context: TeamRatingContext
+  calendar: { current_season_week: number | null; current_season_number: number | null }
+}

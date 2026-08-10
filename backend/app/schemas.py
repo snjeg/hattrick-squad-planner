@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,6 +9,7 @@ from app.contribution.types import (
     PositionRole,
     PositionSide,
 )
+from app.optimizer.types import ObjectiveMode
 from app.roster_scenario.types import (
     PlayerSource,
     TransitionType,
@@ -987,3 +988,119 @@ class RosterScenarioEvaluationResponse(BaseModel):
             WageSource.MODEL_ESTIMATE.value: "Community estimate",
         }
     )
+
+
+class OptimizerWeightsRequest(BaseModel):
+    peak_strength: float = Field(ge=0)
+    depth: float = Field(ge=0)
+    flexibility: float = Field(ge=0)
+    rotation: float = Field(ge=0)
+    training_efficiency: float = Field(ge=0)
+    transfer_value: float = Field(ge=0)
+    wage_efficiency: float = Field(ge=0)
+    capital_efficiency: float = Field(ge=0)
+    liquidity: float = Field(ge=0)
+
+
+class OptimizerSearchRequest(BaseModel):
+    horizon_weeks: int = Field(default=48, ge=16, le=256)
+    block_depth: int = Field(default=3, ge=1, le=4)
+    beam_width: int = Field(default=12, ge=2, le=50)
+    next_training_candidates: int = Field(default=6, ge=1, le=11)
+    durations_per_type: int = Field(default=4, ge=1, le=10)
+    fully_evaluated_plans: int = Field(default=5, ge=1, le=20)
+    alternatives: int = Field(default=3, ge=2, le=5)
+
+
+class OptimizerFinanceConstraintsRequest(BaseModel):
+    minimum_cash_reserve: int | None = Field(default=None, ge=0)
+    max_capital_use: int | None = Field(default=None, ge=0)
+    max_transfer_spend: int | None = Field(default=None, ge=0)
+    wage_ceiling: int | None = Field(default=None, ge=0)
+
+
+class OptimizerSquadConstraintsRequest(BaseModel):
+    minimum_roster_size: int | None = Field(default=None, ge=11)
+    minimum_goalkeepers: int | None = Field(default=None, ge=1)
+    minimum_inner_midfielders: int | None = Field(default=None, ge=1)
+    minimum_squad_score: float | None = Field(default=None, ge=0)
+    minimum_depth_score: float | None = Field(default=None, ge=0)
+
+
+class OptimizerCalendarRequest(BaseModel):
+    current_season_week: int | None = Field(default=None, ge=1, le=16)
+    current_season_number: int | None = Field(default=None, ge=1)
+
+
+class OptimizerTransferAssumptionRequest(BaseModel):
+    player_id: int
+    current_value: RosterTransferValueRequest
+    projected_value: RosterTransferValueRequest | None = None
+
+
+class OptimizerAcquisitionAssumptionRequest(BaseModel):
+    role: PositionRole
+    purchase_price: RosterTransferValueRequest | None = None
+    weekly_wage: int | None = Field(default=None, ge=0)
+    age_min: int = Field(default=17, ge=17, le=99)
+    age_max: int = Field(default=21, ge=17, le=99)
+
+
+class PlanOptimizerRequest(BaseModel):
+    members: list[PlanSquadMemberRequest]
+    objective_mode: ObjectiveMode = ObjectiveMode.BALANCED
+    custom_weights: OptimizerWeightsRequest | None = None
+    current_training_type: TrainingType | None = None
+    current_block_weeks_completed: int = Field(default=0, ge=0)
+    search: OptimizerSearchRequest = Field(default_factory=OptimizerSearchRequest)
+    squad_search: SquadSearchConfigurationRequest = Field(
+        default_factory=lambda: SquadSearchConfigurationRequest(
+            beam_width=10,
+            candidates_per_slot=11,
+            evaluated_per_template=5,
+            retained_per_profile=3,
+            diversity_player_changes=2,
+        )
+    )
+    evaluation_profile: EvaluationProfile = EvaluationProfile.BALANCED
+    context: TeamRatingContextRequest
+    finance_constraints: OptimizerFinanceConstraintsRequest = Field(
+        default_factory=OptimizerFinanceConstraintsRequest
+    )
+    squad_constraints: OptimizerSquadConstraintsRequest = Field(
+        default_factory=OptimizerSquadConstraintsRequest
+    )
+    calendar: OptimizerCalendarRequest = Field(default_factory=OptimizerCalendarRequest)
+    transfer_assumptions: list[OptimizerTransferAssumptionRequest] = Field(
+        default_factory=list
+    )
+    acquisition_assumptions: list[OptimizerAcquisitionAssumptionRequest] = Field(
+        default_factory=list
+    )
+
+
+class OptimizerRecommendationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    current_state_version: str
+    objective_mode: ObjectiveMode
+    recommended_next_block: dict[str, Any]
+    switch_window: dict[str, Any]
+    planned_training_cohort: list[dict[str, Any]]
+    keep_until_block: list[dict[str, Any]]
+    sale_candidates: list[dict[str, Any]]
+    preparation_acquisitions: list[dict[str, Any]]
+    projected_following_blocks: list[dict[str, Any]]
+    alternatives: list[dict[str, Any]]
+    objective_breakdown: dict[str, Any]
+    sensitivity: dict[str, Any]
+    confidence: str
+    uncertainty: list[str]
+    diagnostics: dict[str, Any]
+    model_version: str
+    objective_weights_version: str
+    search_model_version: str
+    acquisition_profile_version: str
+    switch_model_version: str
+    market_timing_model_version: str
+    global_optimality_claimed: bool

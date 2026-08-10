@@ -19,6 +19,8 @@ from app.finance_services import (
     update_plan_finance_assumptions,
 )
 from app.models import OAuthCredential, OAuthRequestState
+from app.optimizer.types import OptimizerValidationError
+from app.optimizer_services import optimize_training_plan
 from app.plan_services import (
     PlanNotFoundError,
     PlanValidationError,
@@ -47,7 +49,9 @@ from app.schemas import (
     FinanceProjectionResponse,
     FixtureAttendanceUpdate,
     HealthResponse,
+    OptimizerRecommendationResponse,
     PlanFinanceResponse,
+    PlanOptimizerRequest,
     PlanRosterScenarioRequest,
     PlanSquadEvaluationRequest,
     PlanSquadEvaluationResponse,
@@ -104,6 +108,7 @@ def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
 @app.exception_handler(TeamRatingValidationError)
 @app.exception_handler(SquadEvaluationValidationError)
 @app.exception_handler(RosterScenarioValidationError)
+@app.exception_handler(OptimizerValidationError)
 def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(error)})
 
@@ -297,6 +302,16 @@ def calculate_plan_roster_scenarios(
     payload: PlanRosterScenarioRequest,
 ) -> RosterScenarioEvaluationResponse:
     return evaluate_plan_roster_scenarios(session, plan_id, payload)
+
+
+@app.post(
+    "/api/training-plans/{plan_id}/optimize",
+    response_model=OptimizerRecommendationResponse,
+)
+def recommend_strategy(
+    session: SessionDependency, plan_id: int, payload: PlanOptimizerRequest
+) -> OptimizerRecommendationResponse:
+    return optimize_training_plan(session, plan_id, payload)
 
 
 @app.post(

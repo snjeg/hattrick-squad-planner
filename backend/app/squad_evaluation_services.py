@@ -1,3 +1,5 @@
+from typing import Literal
+
 from sqlalchemy.orm import Session
 
 from app.contribution.types import PlayerMatchState
@@ -270,7 +272,9 @@ def _training_participation(
 
 def _checkpoint_specs(
     payload: PlanSquadEvaluationRequest, plan: TrainingPlan
-) -> list[tuple[str, int | None, int | None]]:
+) -> list[
+    tuple[Literal["current", "after_block", "final"], int | None, int | None]
+]:
     blocks = sorted(plan.blocks, key=lambda item: (item.sort_order, item.id))
     if payload.checkpoint == "current":
         return [("current", None, None)]
