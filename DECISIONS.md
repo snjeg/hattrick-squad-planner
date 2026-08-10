@@ -379,3 +379,39 @@ The follow-up call-path audit established that HO applies
 `calcMatchAverageStaminaFactor` after `calcPlayerRating` has performed its nonlinear
 `pow(..., 1.2) / 4` conversion. Applying that factor to every raw sector is not
 mathematically equivalent, so Milestone 5 no longer exposes a raw match-average vector.
+
+---
+
+## 2026-08-10 - Recommendations use a bounded receding horizon
+
+**Decision:** Optimize the same nine objective dimensions through versioned Team-first,
+Balanced, and Profit-first weight profiles. Search every modeled training type using
+bounded, pop-informed duration candidates and deterministic beam search. Recommend only
+the immediate block; label later blocks projected/conditional and never claim global
+optimality.
+
+**Reason:** A fixed training cycle or exhaustive forever-plan would ignore squad shape,
+depth, capacity, finances, wages, and new factual information. A bounded search is
+inspectable, fast enough for interactive use, and honest about uncertainty.
+
+**Revisit:** Recalibrate objective presets and search bounds only with versioned evidence.
+Persist completed optimizer runs separately if recommendation-history comparison becomes a
+product requirement; never persist intermediate trees or rewrite factual snapshots.
+
+---
+
+## 2026-08-10 - Transfer seasonality remains qualitative
+
+**Decision:** Classify broad 16-week market windows with the versioned
+`community-seasonality-v1` model, roll projected dates across seasons, and generate sale
+events around pops, block ends, birthdays, stronger windows, and liquidity needs. Do not
+apply automatic numeric price multipliers.
+
+**Reason:** Community reports support broad timing effects but not a defensible exact
+formula. Manager-supplied low/base/high values remain the monetary source of truth, while
+training capacity, wages, capital, and competitive evidence can still make an immediate
+sale preferable in a weak window.
+
+**Revisit:** Add configurable timing multipliers only when backed by an explicit user model
+or a traceable empirical dataset. Hour/day/deadline/list-price execution remains out of
+scope.

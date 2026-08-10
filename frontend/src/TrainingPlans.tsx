@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { formatAge, formatProjectedSkill } from './format'
 import RosterScenarios from './RosterScenarios'
+import StrategyOptimizer from './StrategyOptimizer'
 import type {
   FinanceAssumptions,
   FinanceProjection,
@@ -764,6 +765,13 @@ function TrainingPlans() {
                   })()}
                 </div>}
               </section>
+
+              <StrategyOptimizer
+                plan={plan}
+                roles={squadRoles}
+                profile={squadProfile}
+                context={teamContext}
+              />
 
               <RosterScenarios
                 plan={plan}

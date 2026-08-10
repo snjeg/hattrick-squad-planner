@@ -30,6 +30,7 @@ vi.mock('./api', () => ({
     evaluateTeamRating: vi.fn(),
     evaluateSquad: vi.fn(),
     evaluateRosterScenarios: vi.fn(),
+    optimizePlan: vi.fn(),
     planFinance: vi.fn(),
     saveFinanceAssumptions: vi.fn(),
     saveFixtureAttendance: vi.fn(),
@@ -452,5 +453,15 @@ describe('manual training plans', () => {
         transitions: [expect.objectContaining({ transition_type: 'sell' })],
       })],
     }))
+  })
+
+  it('exposes the rolling strategy workspace without claiming global optimality', async () => {
+    vi.mocked(api.plan).mockResolvedValue(squadPlan)
+    render(<TrainingPlans />)
+    fireEvent.click(await screen.findByRole('button', { name: /Saved manual plan/i }))
+
+    expect(await screen.findByRole('heading', { name: 'Strategy optimizer' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recommend next move' })).toBeEnabled()
+    expect(screen.getByText(/Recommend the next training block/)).toBeInTheDocument()
   })
 })

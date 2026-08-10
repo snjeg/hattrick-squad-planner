@@ -153,6 +153,20 @@ These results intentionally stop at evidence such as "small competitive loss, lo
 one freed training place, and assumed sale proceeds." They do not append "therefore sell."
 See `docs/roster-scenario-engine.md` for timing and finance conventions.
 
+## Rolling strategy optimizer
+
+The **Strategy optimizer** is the first recommendation-producing workspace. Choose Team
+first, Balanced, or Profit first, set a 2–4 season planning horizon and optional Hattrick
+season week, then request the best-supported next move. The result includes the recommended
+training block and switch window, full cohort, temporal keep/sale evidence, abstract future
+acquisition profiles, projected/conditional later blocks, alternatives, objective
+breakdown, sensitivity, confidence, and bounded-search diagnostics.
+
+It is a receding-horizon tool: rerun it after factual changes. It never claims global
+optimality, scrapes the market, fabricates exact prices, bids, or performs CHPP transfer
+actions. Community market seasonality is qualitative and never silently changes supplied
+low/base/high values. See `docs/rolling-optimizer.md` before acting on a result.
+
 ## Live CHPP configuration
 
 Copy `backend/.env.example` to `backend/.env`, set `CHPP_MODE=live`, and provide credentials for an approved CHPP application. Never commit that file or credential values.
@@ -193,13 +207,15 @@ pnpm build
 - `POST /api/squad-evaluations/calculate` - evaluate a supplied normalized senior squad.
 - `POST /api/training-plans/{id}/squad-evaluation` - evaluate plan roles at one or all checkpoints.
 - `POST /api/training-plans/{id}/roster-scenarios/evaluate` - compare explicit checkpoint roster transitions with the no-transition baseline.
+- `POST /api/training-plans/{id}/optimize` - generate a bounded rolling training and squad recommendation.
 - `POST /api/roster-scenarios/evaluate` - evaluate supplied normalized checkpoint states through the same scenario domain.
 - `GET /api/training-plans/{id}/finance` - read plan-bound economy/arena/fixture facts and assumptions.
 - `PUT /api/training-plans/{id}/finance/assumptions` - replace explicit scenario assumptions.
 - `PUT /api/training-plans/{id}/finance/fixtures/{match_id}` - set fixture weather/revenue assumptions.
 - `POST /api/training-plans/{id}/finance/simulate` - project weekly wages and operating cash flow.
 
-The simulator is manual: there is deliberately no optimizer, recommended training cycle,
-transfer advice or valuation, automatic lineup selection, tactic-strength/chance model,
-stadium optimizer, or finance recommendation. Read `PROJECT_SPEC.md`, `AGENTS.md`, and
+The optimizer recommends only the immediate next block/actions and labels later blocks
+projected or conditional. There is deliberately no universal training cycle, real-market
+discovery, automatic bidding, opponent-specific match optimizer, match-result simulation,
+stadium optimizer, or autonomous execution. Read `PROJECT_SPEC.md`, `AGENTS.md`, and
 `DECISIONS.md` before extending the product.

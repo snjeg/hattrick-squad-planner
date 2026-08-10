@@ -90,7 +90,7 @@ function App() {
           <button className={activeView === 'squad' ? 'active' : ''} onClick={() => setActiveView('squad')}>Squad</button>
           <button className={activeView === 'plans' ? 'active' : ''} onClick={() => setActiveView('plans')}>Training plans</button>
         </nav>
-        <span className="milestone">Milestone 4.1 · Attendance scenarios</span>
+        <span className="milestone">Milestone 8 · Rolling optimizer</span>
       </header>
 
       <main>

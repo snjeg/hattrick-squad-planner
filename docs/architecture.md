@@ -147,6 +147,21 @@ club's changing balance.
 `finance_services.py` translates between plan-bound database facts and these independent
 domains.
 
+## Rolling optimizer domain
+
+`backend/app/optimizer/` is a framework-independent receding-horizon layer over the
+existing training simulator, wage projection, roster-scenario, and whole-squad domains.
+It generates bounded training/duration/cohort candidates, caches identical simulations,
+prunes only conservatively comparable dominated paths, and compiles finalists into
+`RosterScenarioRequest` checkpoints for full evaluation. Centralized objective profiles
+change weights, not code paths.
+
+`optimizer_services.py` is the only database adapter. It binds a recommendation to the
+plan's immutable factual snapshot and finance assumptions. The optimizer never writes
+player history, projected states, or recommendations to factual tables. Its serializable
+result carries input/model versions so lightweight run persistence can be added later
+without persisting intermediate search trees. See `docs/rolling-optimizer.md`.
+
 ## Player contribution domain
 
 `backend/app/contribution/` is a framework-independent individual-player primitive. It
@@ -178,7 +193,8 @@ Plaintext OAuth-token storage exists only to support single-user local developme
 - Fractional starting skills default to visible +0.00; automatic inference remains future work.
 - The simple plan UI supports one appearance per player while the API supports mixed segments.
 - Capacity is an aggregate two-match validator, not an automatic lineup or match simulator.
-- Exact wages or attendance, stadium optimization, transfers, match-result prediction, and
-  market search, match-result prediction, and finance recommendations remain future work.
-  Milestone 7 evaluates only explicit manual transfer scenarios. Wage and attendance results are labeled
-  approximations, not verified reproductions of Hattrick's private formulas.
+- Exact wages or attendance, stadium optimization, market search, match-result prediction,
+  and autonomous recommendation execution remain out of scope. Milestone 8 emits bounded,
+  evidence-backed training and roster preparations but does not search actual market
+  players. Wage and attendance results remain labeled approximations, not verified
+  reproductions of Hattrick's private formulas.
