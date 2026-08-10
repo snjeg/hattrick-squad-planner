@@ -46,6 +46,7 @@ from app.roster_scenario.types import (
 from app.simulator.engine import simulate_plan
 from app.simulator.types import (
     ProjectedState,
+    SimulationAssignment,
     SimulationBlock,
     SimulationPlan,
     SimulationPlayer,
@@ -54,8 +55,8 @@ from app.simulator.types import (
 from app.squad_evaluation.types import SquadPlanningRole
 from app.training.age import HattrickAge
 from app.training.coefficients import definition_for
-from app.training.eligibility import TrainingExposure
-from app.training.types import Skill, TrainingType
+from app.training.eligibility import PositionMinutes, TrainingExposure, resolve_training_exposure
+from app.training.types import Position, Skill, TrainingType
 from app.wage.projection import WagePlayerMetadata, WageProjection, project_wages
 
 ScenarioEvaluator = Callable[[RosterScenarioRequest], RosterScenarioEvaluation]
@@ -725,13 +726,15 @@ def _scenario_constraints(request: OptimizerRequest) -> ScenarioConstraints:
 
 def _hypothetical_player(
     target: AcquisitionTarget,
+    request: OptimizerRequest,
+    materialized: _Materialized,
     base_request: RosterScenarioRequest,
 ) -> HypotheticalPlayer:
     if target.expected_weekly_wage is None:
         raise OptimizerValidationError("A priced acquisition requires a weekly wage")
     trained = {skill: sum(bounds) / 2 for skill, bounds in target.skill_ranges.items()}
-    skills = {skill: trained.get(skill, 5.0) for skill in Skill}
-    match_state = PlayerMatchState(
+    skills: dict[Skill, float | None] = {skill: trained.get(skill, 5.0) for skill in Skill}
+    initial_match_state = PlayerMatchState(
         goalkeeper=skills[Skill.GOALKEEPING],
         defending=skills[Skill.DEFENDING],
         playmaking=skills[Skill.PLAYMAKING],
@@ -746,23 +749,108 @@ def _hypothetical_player(
         mother_club=False,
         specialty=None,
     )
+    acquisition_order = target.useful_from_block - 1
+    player_id = (
+        -10_000 - target.useful_from_block * 10 - int(target.target_id.rsplit(":", maxsplit=1)[-1])
+    )
+
+    def assignment_for(spec: _BlockSpec) -> SimulationAssignment | None:
+        position = Position(target.role.value)
+        definition = definition_for(spec.training_type)
+        eligible = (
+            definition.full_positions | definition.partial_positions | definition.osmosis_positions
+        )
+        if position not in eligible:
+            return None
+        return SimulationAssignment(player_id, (PositionMinutes(position, 90),))
+
+    remaining_blocks = tuple(
+        SimulationBlock(
+            block_id=index,
+            order=index,
+            training_type=spec.training_type,
+            weeks=spec.weeks,
+            coach_level=request.training_setup.coach_level,
+            assistant_total_levels=request.training_setup.assistant_total_levels,
+            intensity=request.training_setup.intensity,
+            stamina_share=request.training_setup.stamina_share,
+            assignments=(assignment,) if (assignment := assignment_for(spec)) else (),
+        )
+        for index, spec in enumerate(
+            materialized.specs[acquisition_order:], start=target.useful_from_block
+        )
+    )
+    simulation = simulate_plan(
+        SimulationPlan(
+            plan_id=0,
+            players=(
+                SimulationPlayer(
+                    player_id=player_id,
+                    name=target.target_id,
+                    age=HattrickAge(target.age_min, 0),
+                    skills=skills,
+                ),
+            ),
+            blocks=remaining_blocks,
+            formula_version="optimizer-hypothetical-ho-31622ccd",
+        )
+    )
+    projection = simulation.players[0]
+    wage_projection = project_wages(
+        simulation,
+        (
+            WagePlayerMetadata(
+                player_id=player_id,
+                current_wage=target.expected_weekly_wage,
+                is_foreign=False,
+                has_specialty=False,
+            ),
+        ),
+    ).players[0]
+
     states: dict[str, ScenarioPlayer] = {}
     for frame in base_request.checkpoints:
-        if frame.checkpoint.order < target.useful_from_block - 1:
+        checkpoint_order = frame.checkpoint.order
+        if checkpoint_order < acquisition_order:
             continue
-        exposure = TrainingExposure()
-        if frame.checkpoint.order == target.useful_from_block - 1:
-            exposure = TrainingExposure(full_minutes=90)
+        elapsed_blocks = checkpoint_order - acquisition_order
+        projected = (
+            projection.starting
+            if elapsed_blocks == 0
+            else projection.after_blocks[elapsed_blocks - 1].state
+        )
+        weekly_wage = (
+            wage_projection.starting_wage
+            if elapsed_blocks == 0
+            else wage_projection.after_blocks[elapsed_blocks - 1].weekly_wage
+        )
+        upcoming_assignment = (
+            assignment_for(materialized.specs[checkpoint_order])
+            if checkpoint_order < len(materialized.specs)
+            else None
+        )
+        exposure = (
+            resolve_training_exposure(
+                materialized.specs[checkpoint_order].training_type,
+                upcoming_assignment.appearances,
+            )
+            if upcoming_assignment is not None
+            else TrainingExposure()
+        )
         states[frame.checkpoint.checkpoint_id] = ScenarioPlayer(
             player_key=f"hyp:{target.target_id}",
-            evaluation_id=-10_000 - target.useful_from_block,
+            evaluation_id=player_id,
             name=target.target_id,
-            age=HattrickAge(target.age_min, 0),
-            skills=MappingProxyType(skills),
-            match_state=match_state,
+            age=projected.age,
+            skills=MappingProxyType(dict(projected.skills)),
+            match_state=_match_state(initial_match_state, projected),
             planning_role=SquadPlanningRole(target.planning_role),
-            weekly_wage=target.expected_weekly_wage,
-            wage_source=WageSource.SUPPLIED_ASSUMPTION,
+            weekly_wage=weekly_wage,
+            wage_source=(
+                WageSource.MODEL_ESTIMATE
+                if projected.age.years > projection.starting.age.years
+                else WageSource.SUPPLIED_ASSUMPTION
+            ),
             source=PlayerSource.HYPOTHETICAL,
             allowed_positions=frozenset((target.role,)),
             preferred_positions=frozenset((target.role,)),
@@ -775,7 +863,10 @@ def _hypothetical_player(
         hypothetical_id=f"hyp:{target.target_id}",
         label=target.target_id,
         states_by_checkpoint=MappingProxyType(states),
-        source_note="Manager-supplied price/wage with generated skill profile.",
+        source_note=(
+            "Manager-supplied price/wage with a generated initial profile projected "
+            "through eligible remaining blocks by the existing training simulator."
+        ),
     )
 
 
@@ -818,7 +909,7 @@ def _transition_scenarios(
     ]:
         if target.expected_price is None or target.expected_weekly_wage is None:
             continue
-        hypothetical = _hypothetical_player(target, base_request)
+        hypothetical = _hypothetical_player(target, request, preliminary.materialized, base_request)
         checkpoint = (
             "current"
             if target.useful_from_block == 1

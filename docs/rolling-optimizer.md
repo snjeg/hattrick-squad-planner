@@ -132,6 +132,15 @@ immediately before the relevant later block. V1 evaluates training-only, one sal
 acquisition, and at most one top sale-plus-acquisition; it neither searches the real
 market nor enumerates transfer combinations.
 
+An evaluated acquisition starts with the generated assumed profile at its acquisition
+checkpoint. A standalone invocation of the existing simulator then projects only the
+remaining candidate blocks. The hypothetical player receives the 90-minute assignment
+for its intended positional profile whenever that role is eligible for the block; the
+normal training engine determines full, partial, or osmosis gain. Each later Milestone 7
+state carries the resulting exact age and fractional skills. Supplied wages remain fixed
+until a projected birthday, when the existing approximate wage model is used. No training
+or aging is granted before acquisition, and factual player projections are untouched.
+
 ## Season calendar and market uncertainty
 
 `community-seasonality-v1` is qualitative:

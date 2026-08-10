@@ -8,10 +8,10 @@ from app.squad_evaluation.types import EvaluationProfile, SearchConfiguration
 from app.team_rating.types import TeamRatingContext
 from app.training.types import CoachLevel, Skill, TrainingType
 
-OPTIMIZER_MODEL_VERSION = "rolling-optimizer-v2"
+OPTIMIZER_MODEL_VERSION = "rolling-optimizer-v3"
 OBJECTIVE_WEIGHTS_VERSION = "rolling-objective-v2"
 SEARCH_MODEL_VERSION = "rolling-beam-transitions-v2"
-ACQUISITION_PROFILE_VERSION = "generated-profile-v1"
+ACQUISITION_PROFILE_VERSION = "generated-projected-profile-v2"
 SWITCH_MODEL_VERSION = "marginal-crossover-v2"
 MARKET_TIMING_MODEL_VERSION = "community-seasonality-v1"
 

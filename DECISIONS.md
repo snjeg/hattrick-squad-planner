@@ -434,3 +434,8 @@ weeks after the factual `current_block_weeks_completed` state.
 **Reason:** Post-hoc transfers could not change the chosen training plan, while a constant
 transfer component gave Profit-first false discriminatory precision. The bounded joint
 comparison fixes both errors without turning the milestone into a transfer optimizer.
+
+Hypothetical acquisitions are projected from their effective checkpoint through only the
+remaining candidate blocks with the existing training simulator and wage projector. Their
+Milestone 7 checkpoint states therefore reflect actual modeled development rather than a
+static profile that merely consumes capacity.

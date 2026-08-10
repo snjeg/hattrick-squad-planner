@@ -4,11 +4,23 @@ from types import MappingProxyType
 
 import pytest
 
-from app.contribution.types import MatchWeather, PlayerMatchState
+from app.contribution.types import MatchWeather, PlayerMatchState, PositionRole
 from app.optimizer.assignments import meaningful_capacity, plan_assignments
 from app.optimizer.calendar import calendar_point
-from app.optimizer.engine import optimize
+from app.optimizer.engine import (
+    _BlockSpec,
+    _Counters,
+    _evaluate_candidate,
+    _hypothetical_player,
+    _materialize,
+    _Materialized,
+    _scenario_request,
+    _wages,
+    optimize,
+)
 from app.optimizer.types import (
+    AcquisitionProfileAssumption,
+    AcquisitionTarget,
     MarketStrength,
     ObjectiveMode,
     OptimizerFinance,
@@ -21,9 +33,13 @@ from app.optimizer.types import (
     TrainingSetup,
 )
 from app.optimizer.weights import normalized_weights
+from app.roster_scenario.engine import evaluate_roster_scenarios
 from app.roster_scenario.types import (
+    BuyTransition,
     FinanceSnapshot,
+    HypotheticalPlayer,
     PriceCaseAmounts,
+    RosterScenario,
     RosterScenarioEvaluation,
     RosterScenarioRequest,
     ScenarioCheckpointResult,
@@ -205,6 +221,201 @@ def _evaluator(request: RosterScenarioRequest) -> RosterScenarioEvaluation:
         )
     baseline = ScenarioResult("baseline", "Baseline", tuple(results), (), (), "test")
     return RosterScenarioEvaluation(baseline, ())
+
+
+def _projected_acquisition(
+    *,
+    useful_from_block: int,
+    initial_playmaking: float = 8.0,
+    request: OptimizerRequest | None = None,
+) -> tuple[HypotheticalPlayer, RosterScenarioRequest]:
+    selected = request or replace(_request(), players=_request().players[:11])
+    cache: dict[tuple[tuple[str, int], ...], _Materialized] = {}
+    counters = _Counters()
+    materialized = _materialize(
+        selected,
+        (
+            _BlockSpec(TrainingType.PLAYMAKING, 10),
+            _BlockSpec(TrainingType.GOALKEEPING, 3),
+        ),
+        cache,
+        counters,
+    )
+    wages = _wages(selected, materialized.simulation)
+    base_request = _scenario_request(selected, materialized, wages)
+    target = AcquisitionTarget(
+        target_id=f"target:{useful_from_block}:inner_midfielder:1",
+        role=PositionRole.INNER_MIDFIELDER,
+        useful_from_block=useful_from_block,
+        latest_acquisition_week=0 if useful_from_block == 1 else 9,
+        age_min=17,
+        age_max=17,
+        skill_ranges=MappingProxyType({Skill.PLAYMAKING: (initial_playmaking, initial_playmaking)}),
+        planning_role=SquadPlanningRole.DEVELOPMENT.value,
+        expected_price=TransferValue(90_000, 100_000, 110_000),
+        expected_weekly_wage=2_000,
+        rationale="test profile",
+    )
+    return (
+        _hypothetical_player(target, selected, materialized, base_request),
+        base_request,
+    )
+
+
+def test_hypothetical_acquisition_develops_during_relevant_remaining_block() -> None:
+    hypothetical, _ = _projected_acquisition(useful_from_block=1)
+    before = hypothetical.states_by_checkpoint["current"]
+    after = hypothetical.states_by_checkpoint["after_block:1"]
+    assert after.skills[Skill.PLAYMAKING] > before.skills[Skill.PLAYMAKING]
+    assert after.age == before.age.advance_days(70)
+
+
+def test_hypothetical_acquired_after_block_gets_no_earlier_training() -> None:
+    hypothetical, _ = _projected_acquisition(useful_from_block=2)
+    assert "current" not in hypothetical.states_by_checkpoint
+    acquired = hypothetical.states_by_checkpoint["after_block:1"]
+    final = hypothetical.states_by_checkpoint["after_block:2"]
+    assert acquired.skills[Skill.PLAYMAKING] == pytest.approx(8.0)
+    assert final.skills[Skill.PLAYMAKING] == pytest.approx(8.0)
+
+
+def test_later_whole_squad_rating_uses_developed_hypothetical_state() -> None:
+    players = _skill_shaped_squad({Skill.PLAYMAKING})[:11]
+    request = replace(_request(), players=players)
+    projected, base_request = _projected_acquisition(
+        useful_from_block=1,
+        initial_playmaking=16.0,
+        request=request,
+    )
+    initial = projected.states_by_checkpoint["current"]
+    static = HypotheticalPlayer(
+        hypothetical_id="hyp:static-acquisition",
+        label="Static comparison",
+        states_by_checkpoint=MappingProxyType(
+            {
+                checkpoint_id: replace(
+                    state,
+                    player_key="hyp:static-acquisition",
+                    evaluation_id=-20_001,
+                    age=initial.age,
+                    skills=initial.skills,
+                    match_state=initial.match_state,
+                    weekly_wage=initial.weekly_wage,
+                )
+                for checkpoint_id, state in projected.states_by_checkpoint.items()
+            }
+        ),
+    )
+    scenarios = (
+        RosterScenario(
+            "projected-acquisition",
+            "Projected acquisition",
+            (
+                BuyTransition(
+                    "buy-projected",
+                    "current",
+                    projected.hypothetical_id,
+                    TransferValue(90_000, 100_000, 110_000),
+                ),
+            ),
+            (projected,),
+        ),
+        RosterScenario(
+            "static-acquisition",
+            "Static acquisition",
+            (
+                BuyTransition(
+                    "buy-static",
+                    "current",
+                    static.hypothetical_id,
+                    TransferValue(90_000, 100_000, 110_000),
+                ),
+            ),
+            (static,),
+        ),
+    )
+    evaluated = evaluate_roster_scenarios(replace(base_request, scenarios=scenarios))
+    projected_final, static_final = (scenario.checkpoints[-1] for scenario in evaluated.scenarios)
+    assert projected_final.metrics.peak_strength is not None
+    assert static_final.metrics.peak_strength is not None
+    assert projected_final.metrics.peak_strength > static_final.metrics.peak_strength
+
+
+def test_acquisition_variant_wins_only_when_projected_development_clears_cost() -> None:
+    base = replace(_request(), players=_request().players[:11])
+    cache: dict[tuple[tuple[str, int], ...], _Materialized] = {}
+    materialized = _materialize(
+        base,
+        (_BlockSpec(TrainingType.SET_PIECES, 10),),
+        cache,
+        _Counters(),
+    )
+
+    def development_evaluator(
+        scenario_request: RosterScenarioRequest,
+    ) -> RosterScenarioEvaluation:
+        baseline = _evaluator(scenario_request).baseline
+        variants: list[ScenarioResult] = []
+        checkpoint_order = {
+            item.checkpoint.checkpoint_id: item.checkpoint.order
+            for item in scenario_request.checkpoints
+        }
+        for scenario in scenario_request.scenarios:
+            hypothetical = scenario.hypothetical_players[0]
+            ordered = sorted(
+                hypothetical.states_by_checkpoint.items(),
+                key=lambda item: checkpoint_order[item[0]],
+            )
+            gain = max(
+                (ordered[-1][1].skills[skill] or 0) - (ordered[0][1].skills[skill] or 0)
+                for skill in Skill
+            )
+            development_delta = 20.0 if gain >= 5.50 else -20.0
+            checkpoints = tuple(
+                replace(
+                    checkpoint,
+                    metrics=replace(
+                        checkpoint.metrics,
+                        composite_score=(checkpoint.metrics.composite_score or 0)
+                        + development_delta,
+                        peak_strength=(checkpoint.metrics.peak_strength or 0) + development_delta,
+                        depth=(checkpoint.metrics.depth or 0) + development_delta,
+                        flexibility=(checkpoint.metrics.flexibility or 0) + development_delta,
+                        rotation=(checkpoint.metrics.rotation or 0) + development_delta,
+                    ),
+                )
+                for checkpoint in baseline.checkpoints
+            )
+            variants.append(
+                ScenarioResult(
+                    scenario.scenario_id,
+                    scenario.name,
+                    checkpoints,
+                    (),
+                    (),
+                    "development-test",
+                )
+            )
+        return RosterScenarioEvaluation(baseline, tuple(variants))
+
+    def evaluate_for_age(age: int) -> str:
+        assumption = AcquisitionProfileAssumption(
+            role=PositionRole.CENTRAL_DEFENDER,
+            purchase_price=TransferValue(900, 1_000, 1_100),
+            weekly_wage=100,
+            age_min=age,
+            age_max=age,
+        )
+        evaluated = _evaluate_candidate(
+            replace(base, acquisition_assumptions=(assumption,)),
+            materialized,
+            development_evaluator,
+            _Counters(),
+        )
+        return evaluated.variant_id
+
+    assert evaluate_for_age(17).startswith("optimizer:buy:")
+    assert evaluate_for_age(45) == "baseline"
 
 
 def test_all_training_types_generate_capacity_bounded_assignments() -> None:
