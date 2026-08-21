@@ -1,4 +1,4 @@
-# Architecture through Milestone 7
+# Architecture through Milestone 9
 
 ## Data flow
 
@@ -147,6 +147,17 @@ club's changing balance.
 `finance_services.py` translates between plan-bound database facts and these independent
 domains.
 
+## Product surface reset
+
+Contribution, team-rating, squad-evaluation, roster-scenario and rolling-optimizer domains
+remain internal capabilities. Milestone 9 removes their standalone frontend workspaces
+rather than deleting verified calculation code.
+
+The React product now exposes four areas only: Squad, Strategy, Training Plan and Finance.
+Strategy controls preferred formations and primary tactic, then renders normal orders
+compactly with optional individual-order inspection. Training Plan is a manual “what
+happens if?” sandbox; Finance is a separate primary workspace.
+
 ## Rolling optimizer domain
 
 `backend/app/optimizer/` is a framework-independent receding-horizon layer over the
@@ -161,6 +172,25 @@ plan's immutable factual snapshot and finance assumptions. The optimizer never w
 player history, projected states, or recommendations to factual tables. Its serializable
 result carries input/model versions so lightweight run persistence can be added later
 without persisting intermediate search trees. See `docs/rolling-optimizer.md`.
+
+The Milestone 8 optimizer is retained but is not the new Strategy user experience. A later
+optimizer must reason from tactical identity through position/skill requirements, gaps,
+whole-cohort training geometry and deterministic candidate cycles before producing a
+roadmap.
+
+## Strategy matrix domain
+
+backend/app/strategy is a framework-independent boundary for football identity and the
+Position × Skill × Tactical Context Matrix. It imports the existing immutable contribution
+coefficient map rather than copying it. Direct coefficient totals and within-row dot
+normalization are constructed independently from tactic overlays.
+
+strategy_services.py adapts typed preferences to the domain and serializes the result.
+POST /api/strategy/matrix validates formations against the existing legal-formation set,
+returns all 19 role/order profiles and never reads or writes factual player rows.
+
+Strategy preferences are request-scoped in Milestone 9. This intentionally avoids a
+single-global-row persistence model before team/user ownership exists.
 
 ## Player contribution domain
 
@@ -198,3 +228,6 @@ Plaintext OAuth-token storage exists only to support single-user local developme
   evidence-backed training and roster preparations but does not search actual market
   players. Wage and attendance results remain labeled approximations, not verified
   reproductions of Hattrick's private formulas.
+- The Strategy matrix describes sourced requirements but does not yet derive target skill
+  levels, skill gaps, candidate cycles or a ranked roadmap.
+- Strategy preferences are typed request/UI state rather than persisted user/team settings.

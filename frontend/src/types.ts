@@ -123,6 +123,68 @@ export type MatchLocation = 'away' | 'home' | 'away_derby' | 'tournament' | 'neu
 export type TeamTactic = 'normal' | 'pressing' | 'counter_attacks' | 'attack_in_middle'
   | 'attack_in_wings' | 'play_creatively' | 'long_shots'
 
+export type StrategyEvidenceClassification = 'community_reference_high_confidence'
+  | 'official_rules_qualitative' | 'official_rules_relative_weight' | 'not_applicable'
+export type TacticalRelevanceLevel = 'none' | 'supporting' | 'primary'
+
+export interface StrategyEvidence {
+  classification: StrategyEvidenceClassification
+  source_label: string
+  source_url: string | null
+  explanation: string
+}
+
+export interface StrategyPositionSkillCell {
+  position: Position
+  side: PositionSide
+  order: IndividualOrder
+  skill: Skill
+  direct: {
+    exists: boolean
+    coefficient_total: number
+    normalized_relevance: number
+    dot_count: number
+    coefficients: Array<{
+      sector: ContributionSector
+      coefficient: number
+      specialty_overrides: Array<[number, number]>
+    }>
+    evidence: StrategyEvidence
+  }
+  tactical: {
+    level: TacticalRelevanceLevel
+    relative_weight: number | null
+    weight_basis: string | null
+    evidence: StrategyEvidence
+    explanation: string
+  }
+}
+
+export interface StrategyMatrix {
+  preferences: {
+    primary_tactic: TeamTactic
+    preferred_formations: string[]
+  }
+  available_formations: string[]
+  skills: Skill[]
+  rows: Array<{
+    position: Position
+    side: PositionSide
+    order: IndividualOrder
+    is_default_order: boolean
+    cells: StrategyPositionSkillCell[]
+  }>
+  tactic_summary: {
+    tactic: TeamTactic
+    label: string
+    evidence: StrategyEvidence
+    notes: string[]
+  }
+  direct_model_version: string
+  tactic_model_version: string
+  normalization: string
+}
+
 export interface LineupEntry {
   player_id: number
   position: Position

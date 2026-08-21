@@ -25,6 +25,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid #e1a62b; outline-offs
   justify-content: space-between; color: #f7faf7; background: var(--green-950); border-bottom: 3px solid #2c6644;
 }
 .brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+.brand-button { padding: 0; border: 0; text-align: left; background: transparent; cursor: pointer; }
 .brand-mark {
   width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #769783;
   border-radius: 5px; color: #f0c85b; font: 800 19px 'Manrope', sans-serif;
@@ -245,4 +246,49 @@ input[type='checkbox'] { width: 16px; height: 16px; min-height: 16px; padding: 0
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+
+.workspace-heading { margin-bottom: 30px; }
+.identity-card, .strategy-matrix-card, .strategy-legend {
+  margin-top: 22px; overflow: hidden; border: 1px solid #bdc8c0; border-radius: 7px;
+  background: #fff; box-shadow: 0 5px 18px rgba(39,61,46,.05);
+}
+.identity-controls { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; padding: 20px 22px; }
+.identity-controls > label { display: grid; align-content: start; gap: 7px; color: #415649; font-size: 12px; font-weight: 700; }
+.identity-controls fieldset { margin: 0; padding: 0; border: 0; }
+.identity-controls legend { margin-bottom: 8px; color: #415649; font-size: 12px; font-weight: 700; }
+.identity-controls fieldset > small { display: block; margin-top: 8px; color: #78867d; }
+.formation-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.formation-options label { display: flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid #cfd8d0; border-radius: 3px; color: #274433; background: #f6f8f5; font-size: 11px; font-weight: 700; cursor: pointer; }
+.header-button { padding: 7px 10px; border: 1px solid #6f917b; border-radius: 3px; color: #fff; background: #28533a; font-size: 11px; font-weight: 700; cursor: pointer; }
+.tactic-summary { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 18px; border-bottom: 1px solid #dce2dd; color: #55665b; background: #f0f4f0; font-size: 11px; }
+.tactic-summary strong { color: #173829; }
+.strategy-matrix th, .strategy-matrix td { height: 45px; padding: 7px 9px; text-align: center; }
+.strategy-matrix th:first-child { position: static; min-width: 150px; padding-left: 16px; }
+.strategy-matrix th:nth-child(2) { min-width: 125px; text-align: left; }
+.strategy-matrix thead th:first-child { position: static; }
+.strategy-matrix tbody th[scope='rowgroup'] { vertical-align: top; color: #173829; background: #f5f7f3; font-size: 12px; }
+.strategy-matrix tbody th[scope='row'] { color: #58685d; background: #fbfcfa; font-size: 11px; font-weight: 700; }
+.order-detail-row th, .order-detail-row td { border-bottom-color: #edf0ed; }
+.matrix-cell { position: relative; min-width: 86px; color: #b2bbb4; background: #fff; }
+.matrix-cell.tactic-supporting { background: #edf4df; }
+.matrix-cell.tactic-primary { background: #cee5b8; }
+.matrix-cell .direct-dots { color: #173e28; font-size: 13px; letter-spacing: 2px; }
+.matrix-cell small { position: absolute; right: 5px; top: 4px; color: #44602d; font-size: 8px; font-weight: 800; }
+.strategy-legend { padding: 18px 22px; }
+.strategy-legend h2 { margin-bottom: 14px; color: #173829; font-size: 18px; }
+.strategy-legend > div { display: grid; grid-template-columns: 110px 1fr; gap: 14px; align-items: center; margin: 9px 0; }
+.strategy-legend p { margin: 0; color: #5d6c62; font-size: 12px; line-height: 1.55; }
+.legend-dots, .legend-tactic { display: inline-flex; justify-content: center; padding: 7px 9px; border: 1px solid #cfd8d0; border-radius: 3px; color: #173e28; background: #fff; font-size: 11px; font-weight: 800; }
+.legend-tactic { background: #cee5b8; }
+.strategy-legend details { margin-top: 13px; color: #53645a; font-size: 11px; }
+.finance-page-card { padding: 0; }
+.finance-section-heading { margin: 0; }
+.finance-page-card .finance-actions .primary-button { width: auto; }
+
+@media (max-width: 980px) {
+  .site-header { height: auto; min-height: 68px; flex-wrap: wrap; gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+  .main-nav { order: 3; width: 100%; overflow-x: auto; }
+  .main-nav button { flex: 1 0 auto; }
+  .identity-controls { grid-template-columns: 1fr; }
 }

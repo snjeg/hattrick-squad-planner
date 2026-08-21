@@ -64,6 +64,8 @@ from app.schemas import (
     SquadEvaluationCalculateRequest,
     SquadEvaluationResponse,
     SquadResponse,
+    StrategyMatrixResponse,
+    StrategyPreferencesRequest,
     SyncResponse,
     TeamRatingCalculateRequest,
     TeamRatingCalculationResponse,
@@ -80,13 +82,15 @@ from app.services import get_squad, sync_squad
 from app.simulator.capacity import CapacityValidationError
 from app.squad_evaluation.types import SquadEvaluationValidationError
 from app.squad_evaluation_services import evaluate_plan_squad, evaluate_supplied_squad
+from app.strategy import StrategyValidationError
+from app.strategy_services import get_strategy_matrix
 from app.team_rating.types import TeamRatingValidationError
 from app.team_rating_services import evaluate_plan_team_rating, evaluate_supplied_team_rating
 
 SessionDependency = Annotated[Session, Depends(get_session)]
 
 
-app = FastAPI(title="Hattrick Squad Planner API", version="0.7.0")
+app = FastAPI(title="Hattrick Squad Planner API", version="0.9.0")
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
@@ -109,6 +113,7 @@ def plan_not_found(_: Request, error: PlanNotFoundError) -> JSONResponse:
 @app.exception_handler(SquadEvaluationValidationError)
 @app.exception_handler(RosterScenarioValidationError)
 @app.exception_handler(OptimizerValidationError)
+@app.exception_handler(StrategyValidationError)
 def invalid_plan(_: Request, error: ValueError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(error)})
 
@@ -220,6 +225,11 @@ def run_chpp_sync(session: SessionDependency) -> SyncResponse:
 @app.get("/api/squad", response_model=SquadResponse)
 def squad(session: SessionDependency) -> SquadResponse:
     return get_squad(session)
+
+
+@app.post("/api/strategy/matrix", response_model=StrategyMatrixResponse)
+def strategy_matrix(payload: StrategyPreferencesRequest) -> StrategyMatrixResponse:
+    return get_strategy_matrix(payload)
 
 
 @app.get("/api/training-plans", response_model=TrainingPlanListResponse)

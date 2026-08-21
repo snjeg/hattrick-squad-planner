@@ -439,3 +439,53 @@ Hypothetical acquisitions are projected from their effective checkpoint through 
 remaining candidate blocks with the existing training simulator and wage projector. Their
 Milestone 7 checkpoint states therefore reflect actual modeled development rather than a
 static profile that merely consumes capacity.
+
+---
+
+## 2026-08-21 - Strategy is the core of a four-area training product
+
+**Decision:** Limit primary product navigation to Squad, Strategy, Training Plan and
+Finance. Remove the standalone Individual Contribution, Lineup Evaluation, Squad
+Evaluation, Roster Scenarios and Milestone 8 optimizer presentations. Retain their verified
+backend/domain engines for internal composition.
+
+**Reason:** The manager should plan efficient training cycles, not operate a collection of
+low-level analytical tools. Deleting verified calculation engines would discard useful
+evidence and create unnecessary migration risk.
+
+**Revisit:** Expose a lower-level diagnostic only when Strategy needs an inspectable
+explanation, not as a fifth primary workspace.
+
+---
+
+## 2026-08-21 - Strategy cells keep direct and tactical evidence separate
+
+**Decision:** Build direct skill importance exclusively from the pinned contribution
+coefficient mapping. Sum coefficients by skill within a role/order row, normalize against
+that row's maximum, then use equal-third quantization with ceil(3 × normalized) for one to
+three dots. Keep tactic relevance as an immutable, separately sourced
+none/supporting/primary overlay.
+
+**Reason:** Within-row normalization explains the skill profile of each role/order without
+inventing cross-position performance equivalence. Equal thirds are deterministic and
+inspectable. A separate overlay allows cases such as a central defender's zero direct
+Passing coefficient becoming strategically important for Counter Attacks without corrupting
+the contribution model.
+
+**Revisit:** Change visualization bands only with a versioned UI decision. Replace
+qualitative tactic overlays only when a reliable complete formula is audited.
+
+---
+
+## 2026-08-21 - Strategy preferences are typed but request-scoped
+
+**Decision:** Validate preferred formations against the existing legal set and model them
+with primary tactic in StrategyPreferences. Keep them in UI/request state for Milestone 9;
+do not add a global preferences table.
+
+**Reason:** The next optimizer has a clean input contract now, while a singleton database
+record would bake in the wrong ownership model for future hosted/multi-team use. No
+developer-preferred formation becomes a universal default.
+
+**Revisit:** Add the smallest non-destructive migration once user/team ownership and saved
+strategy variants are defined for Milestone 10.

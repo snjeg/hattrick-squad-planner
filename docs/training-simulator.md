@@ -6,6 +6,11 @@ Milestone 3 answers one question: **If I follow this manually configured trainin
 plan, what happens to the starting squad?** It does not recommend training types,
 switch points, transfers, lineups, tactics, wages, or finances.
 
+In the revised product architecture this is the explicit purpose of the Training Plan
+workspace: “If I train this cohort this way, what happens?” Strategy will eventually
+propose source-backed candidate cycles; Training Plan remains the place to inspect or
+adjust a concrete hypothetical cohort.
+
 The simulator is deterministic and records the Milestone 2 formula reference as
 `ho-31622ccd42e104e21a853122ffd269bd9e98dc88`.
 
