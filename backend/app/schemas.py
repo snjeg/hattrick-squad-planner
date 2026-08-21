@@ -5,9 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.contribution.types import (
     IndividualOrder,
+    MatchSkill,
     MatchWeather,
     PositionRole,
     PositionSide,
+    Sector,
 )
 from app.optimizer.types import ObjectiveMode
 from app.roster_scenario.types import (
@@ -20,6 +22,7 @@ from app.squad_evaluation.types import (
     SquadPlanningRole,
     TrainingParticipation,
 )
+from app.strategy.types import EvidenceClassification, TacticalRelevanceLevel
 from app.team_rating.types import MatchAttitude, MatchLocation, TeamTactic
 from app.training.types import CoachLevel, Position, Skill, TrainingType
 
@@ -74,6 +77,99 @@ class SquadPlayerResponse(BaseModel):
 class SquadResponse(BaseModel):
     players: list[SquadPlayerResponse]
     last_synced_at: datetime | None
+
+
+class StrategyPreferencesRequest(BaseModel):
+    primary_tactic: TeamTactic = TeamTactic.NORMAL
+    preferred_formations: list[str] = Field(default_factory=list)
+
+
+class StrategyEvidenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    classification: EvidenceClassification
+    source_label: str
+    source_url: str | None
+    explanation: str
+
+
+class StrategyDirectCoefficientResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sector: Sector
+    coefficient: float
+    specialty_overrides: tuple[tuple[int, float], ...]
+
+
+class StrategyDirectContributionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    exists: bool
+    coefficient_total: float
+    normalized_relevance: float
+    dot_count: int
+    coefficients: tuple[StrategyDirectCoefficientResponse, ...]
+    evidence: StrategyEvidenceResponse
+
+
+class StrategyTacticalRelevanceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    level: TacticalRelevanceLevel
+    relative_weight: float | None
+    weight_basis: str | None
+    evidence: StrategyEvidenceResponse
+    explanation: str
+
+
+class StrategyPositionSkillCellResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    position: PositionRole
+    side: PositionSide
+    order: IndividualOrder
+    skill: MatchSkill
+    direct: StrategyDirectContributionResponse
+    tactical: StrategyTacticalRelevanceResponse
+
+
+class StrategyPositionSkillRowResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    position: PositionRole
+    side: PositionSide
+    order: IndividualOrder
+    is_default_order: bool
+    cells: tuple[StrategyPositionSkillCellResponse, ...]
+
+
+class StrategyPreferencesResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    primary_tactic: TeamTactic
+    preferred_formations: tuple[str, ...]
+
+
+class StrategyTacticSummaryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    tactic: TeamTactic
+    label: str
+    evidence: StrategyEvidenceResponse
+    notes: tuple[str, ...]
+
+
+class StrategyMatrixResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    preferences: StrategyPreferencesResponse
+    available_formations: tuple[str, ...]
+    skills: tuple[MatchSkill, ...]
+    rows: tuple[StrategyPositionSkillRowResponse, ...]
+    tactic_summary: StrategyTacticSummaryResponse
+    direct_model_version: str
+    tactic_model_version: str
+    normalization: str
 
 
 class StartingSkillOverride(BaseModel):

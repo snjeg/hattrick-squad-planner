@@ -21,10 +21,12 @@ import type {
   OptimizerRequest,
   SimulationResponse,
   SquadResponse,
+  StrategyMatrix,
   SyncResponse,
   TrainingPlan,
   TrainingPlanSummary,
   TrainingType,
+  TeamTactic,
 } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -45,6 +47,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   status: () => request<CHPPStatus>('/api/chpp/status'),
   squad: () => request<SquadResponse>('/api/squad'),
+  strategyMatrix: (primary_tactic: TeamTactic, preferred_formations: string[]) =>
+    request<StrategyMatrix>('/api/strategy/matrix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ primary_tactic, preferred_formations }),
+    }),
   sync: () => request<SyncResponse>('/api/chpp/sync', { method: 'POST' }),
   startAuth: () => request<AuthStartResponse>('/api/chpp/auth/start', { method: 'POST' }),
   plans: () => request<{ plans: TrainingPlanSummary[] }>('/api/training-plans'),

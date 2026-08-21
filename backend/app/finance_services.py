@@ -415,7 +415,13 @@ def run_finance_projection(session: Session, plan_id: int) -> FinanceProjectionR
             )
         )
     }
-    anchor = factual.observed_at if factual is not None else plan.created_at
+    # Fixture dates are relative to the CHPP source's fetched-at clock. Using the local
+    # import timestamp makes the same immutable fixture snapshot drift as wall time passes.
+    anchor = (
+        (factual.source_fetched_at or factual.observed_at)
+        if factual is not None
+        else plan.created_at
+    )
 
     def resolved_revenue(fixture: FixtureSnapshot) -> tuple[int, str]:
         item = per_fixture.get(fixture.match_id)

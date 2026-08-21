@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.chpp.client import MockCHPPClient
-from app.models import PlayerSnapshot, TrainingPlan
+from app.models import Player, PlayerSnapshot, TrainingPlan
 from app.plan_services import (
     PlanNotFoundError,
     PlanValidationError,
@@ -16,17 +16,23 @@ from app.plan_services import (
     delete_training_plan,
     get_training_plan,
     reorder_training_blocks,
+    replace_training_assignments,
     run_training_simulation,
     update_training_block,
+    update_training_plan,
 )
 from app.schemas import (
     StartingSkillOverride,
+    TrainingAppearanceInput,
+    TrainingAssignmentInput,
+    TrainingAssignmentsReplace,
     TrainingBlockCreate,
     TrainingBlockOrderUpdate,
     TrainingBlockUpdate,
     TrainingPlanCreate,
+    TrainingPlanUpdate,
 )
-from app.services import sync_squad
+from app.services import get_squad, sync_squad
 from app.training.types import CoachLevel, Skill, TrainingType
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "chpp" / "players.xml"
@@ -103,6 +109,96 @@ def test_simulation_never_mutates_factual_snapshots(session: Session) -> None:
     assert session.scalars(
         select(PlayerSnapshot.playmaking).order_by(PlayerSnapshot.id)
     ).all() == before_values
+
+
+def test_complete_plan_lifecycle_preserves_factual_squad_and_snapshot_history(
+    session: Session,
+) -> None:
+    sync_squad(session, MockCHPPClient(FIXTURE), "mock")
+    squad_before = get_squad(session).model_dump()
+    players_before = session.execute(
+        select(
+            Player.id,
+            Player.hattrick_player_id,
+            Player.first_name,
+            Player.nickname,
+            Player.last_name,
+            Player.updated_at,
+        ).order_by(Player.id)
+    ).all()
+    snapshots_before = session.execute(
+        select(
+            PlayerSnapshot.id,
+            PlayerSnapshot.player_id,
+            PlayerSnapshot.sync_run_id,
+            PlayerSnapshot.observed_at,
+            PlayerSnapshot.age_years,
+            PlayerSnapshot.age_days,
+            PlayerSnapshot.playmaking,
+            PlayerSnapshot.wage,
+        ).order_by(PlayerSnapshot.id)
+    ).all()
+
+    plan = create_training_plan(session, TrainingPlanCreate(name="Lifecycle proof"))
+    update_training_plan(
+        session,
+        plan.id,
+        TrainingPlanUpdate(
+            name="Edited lifecycle proof",
+            starting_skill_overrides=[
+                StartingSkillOverride(
+                    player_id=100001,
+                    skills={Skill.PLAYMAKING: 9.25},
+                )
+            ],
+        ),
+    )
+    with_block = add_training_block(
+        session,
+        plan.id,
+        TrainingBlockCreate(training_type=TrainingType.PLAYMAKING, weeks=3),
+    )
+    replace_training_assignments(
+        session,
+        plan.id,
+        with_block.blocks[0].id,
+        TrainingAssignmentsReplace(
+            assignments=[
+                TrainingAssignmentInput(
+                    player_id=100001,
+                    appearances=[
+                        TrainingAppearanceInput(position="inner_midfielder", minutes=90)
+                    ],
+                )
+            ]
+        ),
+    )
+    run_training_simulation(session, plan.id, detailed=True)
+    delete_training_plan(session, plan.id)
+
+    assert get_squad(session).model_dump() == squad_before
+    assert session.execute(
+        select(
+            Player.id,
+            Player.hattrick_player_id,
+            Player.first_name,
+            Player.nickname,
+            Player.last_name,
+            Player.updated_at,
+        ).order_by(Player.id)
+    ).all() == players_before
+    assert session.execute(
+        select(
+            PlayerSnapshot.id,
+            PlayerSnapshot.player_id,
+            PlayerSnapshot.sync_run_id,
+            PlayerSnapshot.observed_at,
+            PlayerSnapshot.age_years,
+            PlayerSnapshot.age_days,
+            PlayerSnapshot.playmaking,
+            PlayerSnapshot.wage,
+        ).order_by(PlayerSnapshot.id)
+    ).all() == snapshots_before
 
 
 def test_manual_subskill_override_must_match_visible_level(session: Session) -> None:
